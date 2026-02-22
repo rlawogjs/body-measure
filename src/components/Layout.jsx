@@ -72,7 +72,7 @@ export default function Layout() {
     <Wrap>
       <Header>
         <HeaderInner>
-          <Brand onClick={() => nav("/upload")}>BodyMeasure</Brand>
+          <Brand onClick={() => nav("/upload")}>B-MAS</Brand>
           <Stepper step={step} />
         </HeaderInner>
       </Header>
@@ -82,7 +82,7 @@ export default function Layout() {
       </Main>
 
       <Footer>
-        사진 기반 측정은 촬영 각도/거리/자세에 따라 오차가 발생할 수 있어요. 결과는 참고용입니다.
+        사진 기반 측정은 촬영 각도/거리/자세에 따라 오차가 발생할 수 있습니다.
       </Footer>
     </Wrap>
   );
