@@ -3,33 +3,33 @@ import styled from "styled-components";
 
 const Bar = styled.div`
   display: flex;
-  gap: 10px;
+  gap: 14px;
   align-items: center;
+  flex-wrap: wrap;
+`;
+
+const Item = styled.div`
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  color: ${({ active }) => (active ? "var(--accent)" : "var(--muted)")};
+  font-weight: ${({ active }) => (active ? 800 : 500)};
 `;
 
 const Dot = styled.div`
-  width: 10px;
-  height: 10px;
+  width: 11px;
+  height: 11px;
   border-radius: 999px;
-  background: ${({ active }) => (active ? "var(--accent)" : "rgba(255,255,255,0.25)")};
-  box-shadow: ${({ active }) => (active ? "0 0 0 6px rgba(124,58,237,0.22)" : "none")};
-`;
-
-const Label = styled.div`
-  font-size: 13px;
-  color: var(--muted);
-  white-space: nowrap;
+  border: 1px solid var(--line);
+  background: ${({ active }) => (active ? "var(--accent)" : "transparent")};
 `;
 
 export default function Stepper({ step }) {
   return (
     <Bar>
-      <Dot active={step >= 1} />
-      <Label>업로드</Label>
-      <Dot active={step >= 2} />
-      <Label>기준 입력</Label>
-      <Dot active={step >= 3} />
-      <Label>결과</Label>
+      <Item active={step >= 1}><Dot active={step >= 1} />촬영</Item>
+      <Item active={step >= 2}><Dot active={step >= 2} />보정</Item>
+      <Item active={step >= 3}><Dot active={step >= 3} />결과</Item>
     </Bar>
   );
 }

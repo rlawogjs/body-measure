@@ -11,6 +11,8 @@ import {
   getMeasureSeries,
   loadMeasurementHistory,
 } from "../utils/measurementHistory";
+import { saveMeasurement } from "../api/serverApi";
+import { recommendUniformSizes, addIssueRecord } from "../utils/militaryDb";
 
 const rise = keyframes`
   from {
@@ -34,7 +36,7 @@ const Hero = styled.section`
   border-radius: 28px;
   box-shadow: var(--shadow);
   padding: 28px;
-  animation: ${rise} .8s ease both;
+  animation: ${rise} 0.8s ease both;
 `;
 
 const HeroTop = styled.div`
@@ -85,7 +87,7 @@ const Card = styled.section`
   border-radius: 28px;
   box-shadow: var(--shadow-soft);
   padding: 24px;
-  animation: ${rise} .9s ease both;
+  animation: ${rise} 1s ease both;
 `;
 
 const SectionTitle = styled.h2`
@@ -113,8 +115,12 @@ const Row = styled.div`
   background: ${({ header }) => (header ? "var(--paper-2)" : "transparent")};
   font-weight: ${({ header }) => (header ? 800 : 500)};
 
-  &:first-child{
+  &:first-child {
     border-top: 0;
+  }
+
+  @media (max-width: 900px) {
+    grid-template-columns: 1fr;
   }
 `;
 
@@ -158,9 +164,9 @@ const Button = styled.button`
   border-radius: 999px;
   font-weight: 800;
   cursor: pointer;
-  transition: transform .18s ease, opacity .18s ease;
+  transition: transform 0.18s ease, opacity 0.18s ease;
 
-  &:hover{
+  &:hover {
     transform: translateY(-2px);
   }
 `;
@@ -168,7 +174,7 @@ const Button = styled.button`
 const HistoryList = styled.div`
   margin-top: 18px;
   display: grid;
-  gap: 10px;
+  gap: 12px;
 `;
 
 const HistoryItem = styled.div`
@@ -196,57 +202,113 @@ const EmptyState = styled.div`
   color: var(--muted);
 `;
 
+const RecommendGrid = styled.div`
+  margin-top: 18px;
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+
+  @media (max-width: 900px) {
+    grid-template-columns: 1fr;
+  }
+`;
+
+const RecommendCard = styled.div`
+  border: 1px solid var(--line-soft);
+  background: var(--paper-2);
+  border-radius: 18px;
+  padding: 16px;
+`;
+
+function asArray(value) {
+  return Array.isArray(value) ? value : [];
+}
+
 function mmToCm(mm) {
-  return (mm / 10).toFixed(1);
+  const n = Number(mm);
+  if (!Number.isFinite(n)) return "-";
+  return (n / 10).toFixed(1);
 }
 
 function round2(n) {
-  return Math.round(n * 100) / 100;
-}
-
-function findMeasureMm(measures, label) {
-  const found = measures.find((m) => m.label === label);
-  return found?.mm ?? 0;
+  const value = Number(n);
+  if (!Number.isFinite(value)) return 0;
+  return Math.round(value * 100) / 100;
 }
 
 function calculateBMI(heightMm, weightKg) {
   const heightM = heightMm / 1000;
-  if (!heightM || !weightKg) return 0;
-  return weightKg / (heightM * heightM);
+  const weight = Number(weightKg);
+  if (!heightM || !weight) return 0;
+  return weight / (heightM * heightM);
+}
+
+function findMeasureMm(measures, label) {
+  const safeMeasures = asArray(measures);
+  const found = safeMeasures.find((m) => m?.label === label);
+  return Number(found?.mm) || 0;
 }
 
 function buildEnhancedMeasures(baseMeasures, calibrationMm, weightKg) {
-  const next = [...baseMeasures];
+  const safeBase = asArray(baseMeasures);
 
   const heightMm = calibrationMm;
-  const shoulderMm = findMeasureMm(baseMeasures, "어깨너비");
-  const upperBodyMm = findMeasureMm(baseMeasures, "상체 길이");
-  const lowerBodyMm = findMeasureMm(baseMeasures, "하체 길이");
-  const waistMm =
-    findMeasureMm(baseMeasures, "허리너비") || Math.round(calibrationMm * 0.18);
+  const shoulderMm = findMeasureMm(safeBase, "어깨너비");
+  const upperBodyMm = findMeasureMm(safeBase, "상체 길이");
+  const lowerBodyMm = findMeasureMm(safeBase, "하체 길이");
+  const waistMm = findMeasureMm(safeBase, "허리너비") || Math.round(calibrationMm * 0.18);
 
   const bmi = calculateBMI(heightMm, weightKg);
   const waistHeightRatio = heightMm ? waistMm / heightMm : 0;
   const shoulderWaistRatio = waistMm ? shoulderMm / waistMm : 0;
   const upperLowerRatio = lowerBodyMm ? upperBodyMm / lowerBodyMm : 0;
 
-  next.push(
-    { label: "체중", mm: round2(weightKg), confidence: 1, unit: "kg" },
-    { label: "BMI", mm: round2(bmi), confidence: 1, unit: "bmi" },
-    { label: "허리/키 비율", mm: round2(waistHeightRatio), confidence: 0.88, unit: "ratio" },
-    { label: "어깨/허리 비율", mm: round2(shoulderWaistRatio), confidence: 0.85, unit: "ratio" },
-    { label: "상체/하체 비율", mm: round2(upperLowerRatio), confidence: 0.84, unit: "ratio" }
-  );
-
-  return next;
+  return [
+    ...safeBase,
+    {
+      label: "체중",
+      mm: round2(weightKg),
+      confidence: 1,
+      unit: "kg",
+    },
+    {
+      label: "BMI",
+      mm: round2(bmi),
+      confidence: 1,
+      unit: "bmi",
+    },
+    {
+      label: "허리/키 비율",
+      mm: round2(waistHeightRatio),
+      confidence: 0.88,
+      unit: "ratio",
+    },
+    {
+      label: "어깨/허리 비율",
+      mm: round2(shoulderWaistRatio),
+      confidence: 0.85,
+      unit: "ratio",
+    },
+    {
+      label: "상체/하체 비율",
+      mm: round2(upperLowerRatio),
+      confidence: 0.84,
+      unit: "ratio",
+    },
+  ];
 }
 
 function formatMeasureValue(item) {
   if (!item) return "-";
-  if (item.unit === "kg") return `${Number(item.mm).toFixed(1)} kg`;
-  if (item.unit === "bmi") return Number(item.mm).toFixed(2);
-  if (item.unit === "ratio") return Number(item.mm).toFixed(2);
-  return `${mmToCm(item.mm)} cm`;
+
+  const value = Number(item.mm);
+  if (!Number.isFinite(value)) return "-";
+
+  if (item.unit === "kg") return `${value.toFixed(1)} kg`;
+  if (item.unit === "bmi") return value.toFixed(2);
+  if (item.unit === "ratio") return value.toFixed(2);
+
+  return `${mmToCm(value)} cm`;
 }
 
 export default function ResultPage() {
@@ -256,14 +318,20 @@ export default function ResultPage() {
 
   const [loading, setLoading] = useState(true);
   const [result, setResult] = useState(null);
-  const [history, setHistory] = useState(() => loadMeasurementHistory());
+  const [history, setHistory] = useState(() => {
+    const loaded = loadMeasurementHistory();
+    return Array.isArray(loaded) ? loaded : [];
+  });
   const [selectedLabel, setSelectedLabel] = useState("키(추정)");
   const [weightKg, setWeightKg] = useState(() => {
     const saved = Number(localStorage.getItem("bm_last_weight_kg") || "70");
     return Number.isFinite(saved) && saved > 0 ? saved : 70;
   });
+  const [serverSaveMessage, setServerSaveMessage] = useState("");
 
   const savedRef = useRef(false);
+  const serverSavedRef = useRef(false);
+
   const ok = useMemo(() => calibrationMm >= 1000, [calibrationMm]);
 
   useEffect(() => {
@@ -281,6 +349,8 @@ export default function ResultPage() {
 
       setLoading(true);
       savedRef.current = false;
+      serverSavedRef.current = false;
+      setServerSaveMessage("");
 
       try {
         const res = await measureWithCalibration({ calibrationMm });
@@ -321,19 +391,71 @@ export default function ResultPage() {
     });
 
     const nextHistory = addMeasurementHistory(snapshot);
-    setHistory(nextHistory);
+    setHistory(Array.isArray(nextHistory) ? nextHistory : []);
     savedRef.current = true;
   }, [result, loading, imageId, calibrationMm]);
+
+  useEffect(() => {
+    async function saveToServer() {
+      if (!result || loading || serverSavedRef.current) return;
+
+      const findMeasureValue = (label) => {
+        const found = asArray(result?.measures).find((m) => m?.label === label);
+        return Number(found?.mm) || 0;
+      };
+
+      try {
+        await saveMeasurement({
+          image_id: imageId || "",
+          height_mm: calibrationMm,
+          weight_kg: weightKg,
+          bmi: Number(findMeasureValue("BMI")),
+          shoulder_width_mm: Number(findMeasureValue("어깨너비")),
+          upper_body_length_mm: Number(findMeasureValue("상체 길이")),
+          lower_body_length_mm: Number(findMeasureValue("하체 길이")),
+          waist_height_ratio: Number(findMeasureValue("허리/키 비율")),
+          shoulder_waist_ratio: Number(findMeasureValue("어깨/허리 비율")),
+          upper_lower_ratio: Number(findMeasureValue("상체/하체 비율")),
+          note: "",
+        });
+
+        serverSavedRef.current = true;
+        setServerSaveMessage("서버 DB 저장 완료");
+
+        const uniforms = recommendUniformSizes({
+          heightMm: calibrationMm,
+          weightKg,
+        });
+
+        asArray(uniforms).forEach((item) => {
+          addIssueRecord({
+            userId: 3,
+            itemName: item.itemName,
+            size: item.size,
+            quantity: item.quantity || 1,
+            status: "recommended",
+            note: "측정 결과 기반 추천",
+          });
+        });
+      } catch (err) {
+        console.error("서버 저장 실패", err);
+        setServerSaveMessage("서버 저장 실패");
+      }
+    }
+
+    saveToServer();
+  }, [result, loading, imageId, calibrationMm, weightKg]);
 
   const measureOptions = useMemo(() => {
     const labels = new Set();
 
-    if (result?.measures?.length) {
-      result.measures.forEach((m) => labels.add(m.label));
-    }
+    asArray(result?.measures).forEach((m) => {
+      if (m?.label) labels.add(m.label);
+    });
 
-    history.forEach((entry) => {
-      Object.keys(entry.measures || {}).forEach((label) => labels.add(label));
+    asArray(history).forEach((entry) => {
+      const measures = entry?.measures && typeof entry.measures === "object" ? entry.measures : {};
+      Object.keys(measures).forEach((label) => labels.add(label));
     });
 
     return Array.from(labels);
@@ -350,13 +472,22 @@ export default function ResultPage() {
     return getMeasureSeries(history, selectedLabel);
   }, [history, selectedLabel]);
 
+  const recommendations = useMemo(() => {
+    return recommendUniformSizes({
+      heightMm: calibrationMm,
+      weightKg,
+    });
+  }, [calibrationMm, weightKg]);
+
   if (!ok) {
     return (
       <Card>
         <SectionTitle>결과</SectionTitle>
         <SectionDesc>기준 길이 입력이 없어 먼저 이전 단계를 완료해야 합니다.</SectionDesc>
         <ButtonRow>
-          <Button primary onClick={() => nav("/calibrate")}>기준 입력으로</Button>
+          <Button primary onClick={() => nav("/calibrate")}>
+            기준 입력으로
+          </Button>
         </ButtonRow>
       </Card>
     );
@@ -371,7 +502,7 @@ export default function ResultPage() {
             <HeroTitle>B-MAS Analysis</HeroTitle>
             <HeroDesc>
               측정 결과, 보조 지표, 기록 기반 변화 그래프를 한 화면에서 확인할 수 있습니다.
-              체중을 입력하면 BMI와 비율 지표도 함께 저장됩니다.
+              체중을 입력하면 BMI와 비율 지표도 함께 계산되고, 로컬 기록과 서버 DB에 같이 저장됩니다.
             </HeroDesc>
           </div>
         </HeroTop>
@@ -379,7 +510,8 @@ export default function ResultPage() {
         <BadgeRow>
           <Pill>기준 키 {mmToCm(calibrationMm)} cm</Pill>
           {result?.scaleMmPerPx ? <Pill>스케일 {result.scaleMmPerPx} mm/px</Pill> : null}
-          <Pill>기록 수 {history.length}개</Pill>
+          <Pill>저장된 기록 {history.length}개</Pill>
+          <Pill>{serverSaveMessage || "서버 저장 대기 중"}</Pill>
         </BadgeRow>
       </Hero>
 
@@ -415,7 +547,7 @@ export default function ResultPage() {
               <div>-</div>
             </Row>
           ) : (
-            result?.measures?.map((m) => (
+            asArray(result?.measures).map((m) => (
               <Row key={m.label}>
                 <div style={{ fontWeight: 800 }}>{m.label}</div>
                 <div>{formatMeasureValue(m)}</div>
@@ -436,6 +568,27 @@ export default function ResultPage() {
             새로 측정
           </Button>
         </ButtonRow>
+      </Card>
+
+      <Card>
+        <SectionTitle>군 피복 추천</SectionTitle>
+        <SectionDesc>현재 신체 정보 기준 추천 사이즈입니다.</SectionDesc>
+
+        {!recommendations.length ? (
+          <EmptyState>추천 결과가 없습니다.</EmptyState>
+        ) : (
+          <RecommendGrid>
+            {recommendations.map((item, idx) => (
+              <RecommendCard key={`${item.itemName}-${idx}`}>
+                <div style={{ fontWeight: 900 }}>{item.itemName}</div>
+                <HistoryMeta>
+                  <div>추천 사이즈 {item.size}</div>
+                  <div>수량 {item.quantity || 1}</div>
+                </HistoryMeta>
+              </RecommendCard>
+            ))}
+          </RecommendGrid>
+        )}
       </Card>
 
       <Card>
@@ -478,8 +631,8 @@ export default function ResultPage() {
         ) : (
           <HistoryList>
             {history.map((entry) => {
-              const raw = entry.measures?.[selectedLabel]?.mm;
-              const confidence = entry.measures?.[selectedLabel]?.confidence;
+              const raw = entry?.measures?.[selectedLabel]?.mm;
+              const confidence = entry?.measures?.[selectedLabel]?.confidence;
 
               const isNumberMetric =
                 selectedLabel === "BMI" ||
@@ -515,6 +668,14 @@ export default function ResultPage() {
             })}
           </HistoryList>
         )}
+      </Card>
+
+      <Card>
+        <SectionTitle>저장 방식 설명</SectionTitle>
+        <SectionDesc>
+          현재 구조는 기존 브라우저 기록 저장을 유지하면서, 같은 결과를 서버 DB에도 함께 저장하는 이중 저장 방식입니다.
+          따라서 로컬 그래프 기능을 유지하면서도 나중에 관리자 페이지에서 서버 데이터를 활용할 수 있습니다.
+        </SectionDesc>
       </Card>
     </Grid>
   );
