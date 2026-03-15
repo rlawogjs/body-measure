@@ -1,80 +1,164 @@
 import React, { useMemo, useState } from "react";
-import styled from "styled-components";
+import styled, { keyframes } from "styled-components";
 import { useNavigate } from "react-router-dom";
 
-const Card = styled.div`
-  background: rgba(17,24,39,0.72);
-  border: 1px solid var(--line);
-  border-radius: 18px;
-  box-shadow: 0 10px 30px rgba(0,0,0,0.25);
-  padding: 18px;
+const rise = keyframes`
+  from {
+    opacity: 0;
+    transform: translateY(22px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
 `;
 
 const Grid = styled.div`
   display: grid;
-  grid-template-columns: 1.05fr 0.95fr;
-  gap: 16px;
-  @media (max-width: 860px) { grid-template-columns: 1fr; }
+  grid-template-columns: 0.95fr 1.05fr;
+  gap: 20px;
+
+  @media (max-width: 900px){
+    grid-template-columns: 1fr;
+  }
 `;
 
-const Preview = styled.img`
-  width: 100%;
-  border-radius: 14px;
+const Panel = styled.section`
+  background: var(--paper);
+  border: 1.5px solid var(--line);
+  border-radius: 28px;
+  box-shadow: var(--shadow);
+  overflow: hidden;
+  animation: ${rise} 0.75s ease both;
+`;
+
+const Left = styled(Panel)`
+  padding: 24px;
+`;
+
+const Right = styled(Panel)`
+  padding: 28px;
+`;
+
+const Bubble = styled.div`
+  display: inline-grid;
+  place-items: center;
+  width: 54px;
+  height: 54px;
+  border-radius: 999px;
+  background: #eee6c8;
   border: 1px solid var(--line);
-  max-height: 420px;
-  object-fit: cover;
+  color: var(--accent);
+  font-weight: 900;
+  margin-bottom: 12px;
 `;
 
-const Field = styled.div`
-  display: grid;
-  gap: 8px;
-  margin-top: 12px;
+const Title = styled.h2`
+  color: var(--accent);
 `;
 
-const InputRow = styled.div`
+const Desc = styled.p`
+  margin-top: 10px;
+`;
+
+const InputWrap = styled.div`
+  margin-top: 22px;
   display: grid;
-  grid-template-columns: 1fr 80px;
   gap: 10px;
+`;
+
+const Label = styled.div`
+  font-weight: 800;
+  color: var(--text);
 `;
 
 const Input = styled.input`
-  padding: 12px 12px;
-  border-radius: 14px;
-  border: 1px solid var(--line);
-  background: rgba(255,255,255,0.06);
+  width: 100%;
+  padding: 16px 18px;
+  border-radius: 18px;
+  border: 1.5px solid var(--line);
+  background: #fcfaf6;
   color: var(--text);
+  font-size: 18px;
   outline: none;
+
+  &:focus{
+    border-color: var(--accent);
+    box-shadow: 0 0 0 5px rgba(108, 88, 71, 0.08);
+  }
+`;
+
+const Tips = styled.div`
+  margin-top: 20px;
+  display: grid;
+  gap: 10px;
+`;
+
+const Tip = styled.div`
+  border: 1px solid var(--line-soft);
+  background: var(--paper-2);
+  border-radius: 16px;
+  padding: 14px 16px;
 `;
 
 const ButtonRow = styled.div`
+  margin-top: 22px;
   display: flex;
   gap: 10px;
-  margin-top: 14px;
   flex-wrap: wrap;
 `;
 
 const Button = styled.button`
-  padding: 12px 14px;
-  border-radius: 14px;
-  border: 1px solid var(--line);
-  background: ${({ variant }) => (variant === "primary" ? "var(--accent)" : "rgba(255,255,255,0.06)")};
-  color: var(--text);
+  border: 1.5px solid ${({ primary }) => (primary ? "var(--accent)" : "var(--line)")};
+  background: ${({ primary }) => (primary ? "var(--accent)" : "var(--paper-2)")};
+  color: ${({ primary }) => (primary ? "#fff" : "var(--text)")};
+  padding: 12px 18px;
+  border-radius: 999px;
+  font-weight: 800;
   cursor: pointer;
-  font-weight: 700;
-  &:disabled { opacity: 0.5; cursor: not-allowed; }
+  transition: transform .18s ease, opacity .18s ease;
+
+  &:hover{
+    transform: translateY(-2px);
+  }
+
+  &:disabled{
+    opacity: .5;
+    cursor: not-allowed;
+    transform: none;
+  }
+`;
+
+const ImageBox = styled.div`
+  border-radius: 22px;
+  overflow: hidden;
+  border: 1px solid var(--line);
+  background: linear-gradient(180deg, #f5efe7, #e9dfd0);
+  min-height: 420px;
+  display: grid;
+  place-items: center;
+`;
+
+const Preview = styled.img`
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
 `;
 
 export default function CalibratePage() {
   const nav = useNavigate();
   const previewUrl = sessionStorage.getItem("bm_previewUrl") || "";
   const [heightCm, setHeightCm] = useState("");
+
   const heightMm = useMemo(() => {
     const n = Number(heightCm);
     if (!Number.isFinite(n)) return 0;
-    return Math.round(n * 10); // cm -> mm
+    return Math.round(n * 10);
   }, [heightCm]);
 
-  const canNext = useMemo(() => previewUrl && heightMm >= 1000 && heightMm <= 2500, [previewUrl, heightMm]);
+  const canNext = useMemo(() => {
+    return !!previewUrl && heightMm >= 1000 && heightMm <= 2500;
+  }, [previewUrl, heightMm]);
 
   function goNext() {
     sessionStorage.setItem("bm_calibrationMm", String(heightMm));
@@ -83,58 +167,65 @@ export default function CalibratePage() {
 
   if (!previewUrl) {
     return (
-      <Card>
-        <h1>기준 입력</h1>
-        <p>업로드된 사진이 없어요. 먼저 사진을 업로드해 주세요.</p>
-        <Button variant="primary" onClick={() => nav("/upload")}>업로드로</Button>
-      </Card>
+      <Left>
+        <Title>기준 입력</Title>
+        <Desc>업로드된 이미지가 없어 먼저 업로드 단계로 이동해야 합니다.</Desc>
+        <ButtonRow>
+          <Button primary onClick={() => nav("/upload")}>업로드로 이동</Button>
+        </ButtonRow>
+      </Left>
     );
   }
 
   return (
     <Grid>
-      <Card>
-        <h1>기준 길이 입력</h1>
-        <p>스케일(비례율)을 만들기 위해 “실제 길이”가 확실한 값을 입력해요. (MVP는 키 입력)</p>
+      <Left>
+        <Bubble>02</Bubble>
+        <Title>기준 길이 입력</Title>
+        <Desc>
+          사진만으로는 실제 길이를 알 수 없기 때문에 사용자의 키를 입력해서
+          전체 측정값을 보정합니다.
+        </Desc>
 
-        <Field>
-          <label style={{ fontWeight: 800 }}>키(신장)</label>
-          <InputRow>
-            <Input
-              inputMode="decimal"
-              placeholder="예: 173"
-              value={heightCm}
-              onChange={(e) => setHeightCm(e.target.value)}
-            />
-            <div style={{ display: "grid", placeItems: "center", color: "var(--muted)" }}>cm</div>
-          </InputRow>
-          <div style={{ color: "var(--muted)", fontSize: 13 }}>
-            허용 범위: 100~250cm (현재: {heightMm ? `${(heightMm / 10).toFixed(1)}cm` : "-"})
-          </div>
-        </Field>
+        <InputWrap>
+          <Label>키 입력 (cm)</Label>
+          <Input
+            inputMode="decimal"
+            placeholder="예: 173"
+            value={heightCm}
+            onChange={(e) => setHeightCm(e.target.value)}
+          />
+          <p>
+            허용 범위: 100 ~ 250cm
+            {" · "}
+            현재값: {heightMm ? `${(heightMm / 10).toFixed(1)} cm` : "-"}
+          </p>
+        </InputWrap>
+
+        <Tips>
+          <Tip>신발을 신지 않은 실제 키에 가까운 값을 넣는 것이 좋습니다.</Tip>
+          <Tip>사진 속 자세가 과하게 구부정하면 보정이 달라질 수 있습니다.</Tip>
+          <Tip>이 단계가 끝나면 결과표와 변화 그래프를 확인할 수 있습니다.</Tip>
+        </Tips>
 
         <ButtonRow>
-          <Button onClick={() => nav("/upload")}>이전</Button>
-          <Button variant="primary" onClick={goNext} disabled={!canNext}>
-            다음(측정 결과)
+          <Button onClick={() => nav("/upload")}>이전 단계</Button>
+          <Button primary disabled={!canNext} onClick={goNext}>
+            결과 보러가기
           </Button>
         </ButtonRow>
+      </Left>
 
-        <div style={{ marginTop: 16, borderTop: "1px solid var(--line)", paddingTop: 14 }}>
-          <h2>정확도 팁</h2>
-          <p>정면/거리/렌즈(1x)에 따라 오차가 크게 바뀝니다. 결과 화면에서 신뢰도도 함께 제공할 예정이에요.</p>
-        </div>
-      </Card>
+      <Right>
+        <Title>참조 이미지</Title>
+        <Desc>현재 보정에 사용되는 업로드 이미지입니다.</Desc>
 
-      <Card>
-        <h2>미리보기</h2>
-        <div style={{ marginTop: 12 }}>
-          <Preview src={previewUrl} alt="preview" />
+        <div style={{ marginTop: 18 }}>
+          <ImageBox>
+            <Preview src={previewUrl} alt="업로드 이미지" />
+          </ImageBox>
         </div>
-        <p style={{ marginTop: 10 }}>
-          다음 단계에서 “측정 오버레이(선/점)”를 여기에 그려서 사용자 신뢰도를 올릴 수 있어요.
-        </p>
-      </Card>
+      </Right>
     </Grid>
   );
 }
