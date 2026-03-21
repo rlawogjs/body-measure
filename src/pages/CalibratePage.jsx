@@ -75,7 +75,7 @@ export default function CalibratePage() {
       <Card>
         <h2 style={{ color: "var(--accent)" }}>기준 입력</h2>
         <p style={{ marginTop: 10 }}>먼저 업로드 단계에서 이미지를 등록해 주세요.</p>
-        <ButtonRow><Button primary onClick={() => nav("/upload")}>업로드로 이동</Button></ButtonRow>
+        <ButtonRow><Button $primary onClick={() => nav("/upload")}>업로드로 이동</Button></ButtonRow>
       </Card>
     );
   }

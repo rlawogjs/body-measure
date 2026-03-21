@@ -46,15 +46,27 @@ const ButtonRow = styled.div`
   flex-wrap: wrap;
 `;
 
-const Button = styled.button`
-  border: 1.5px solid ${({ primary }) => (primary ? "var(--accent)" : "var(--line)")};
-  background: ${({ primary }) => (primary ? "var(--accent)" : "var(--paper-2)")};
-  color: ${({ primary }) => (primary ? "white" : "var(--text)")};
+const Button = styled.button.withConfig({
+  shouldForwardProp: (prop) => prop !== "$primary",
+})`
+  border: 1.5px solid ${({ $primary }) => ($primary ? "var(--accent)" : "var(--line)")};
+  background: ${({ $primary }) => ($primary ? "var(--accent)" : "var(--paper-2)")};
+  color: ${({ $primary }) => ($primary ? "#fff" : "var(--text)")};
   padding: 12px 18px;
   border-radius: 999px;
   font-weight: 800;
   cursor: pointer;
-  opacity: ${({ disabled }) => (disabled ? 0.55 : 1)};
+  transition: transform .18s ease, opacity .18s ease;
+
+  &:hover{
+    transform: translateY(-2px);
+  }
+
+  &:disabled{
+    opacity: 0.5;
+    cursor: not-allowed;
+    transform: none;
+  }
 `;
 
 export default function UploadPage() {
@@ -100,7 +112,7 @@ export default function UploadPage() {
         <h1 style={{ color: "var(--accent)", marginTop: 10 }}>군 피복 치수 촬영</h1>
         <p style={{ marginTop: 12 }}>병사 전신 이미지를 촬영하거나 업로드해서 전투복/방한복 사이즈 추천에 필요한 기본 치수를 계산합니다.</p>
         <ButtonRow>
-          <Button primary onClick={onAnalyze} disabled={!canNext}>{loading ? "분석 중..." : "다음 단계"}</Button>
+          <Button $primary onClick={onAnalyze} disabled={!canNext}>{loading ? "분석 중..." : "다음 단계"}</Button>
           <Button onClick={() => { setFile(null); setPreviewUrl(""); }}>초기화</Button>
         </ButtonRow>
         <div style={{ marginTop: 24 }}>

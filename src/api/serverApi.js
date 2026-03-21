@@ -1,4 +1,4 @@
-const API_BASE = "http://localhost:8000";
+const API_BASE = "https://symmetrical-orbit-754xj7rq55gfggq-8000.app.github.dev";
 
 export function getToken() {
   return localStorage.getItem("bm_token") || "";

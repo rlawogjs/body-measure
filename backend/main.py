@@ -1,89 +1,188 @@
+from fastapi.middleware.cors import CORSMiddleware
+from fastapi import FastAPI, Depends, HTTPException, Form
+from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy.orm import Session
-from models import User, MeasurementRecord, ClothingIssue
-from auth import hash_password
 
+from database import Base, engine, get_db
+from models import User
+from schemas import (
+    LoginRequest,
+    Token,
+    UserCreate,
+    UserOut,
+    MeasurementCreate,
+    MeasurementUpdate,
+    MeasurementOut,
+    ClothingIssueCreate,
+    ClothingIssueOut,
+)
+from crud import (
+    create_user,
+    get_user_by_username,
+    get_users,
+    create_measurement,
+    get_measurements_by_user,
+    get_all_measurements,
+    get_measurement,
+    update_measurement,
+    delete_measurement,
+    create_issue,
+    get_issues_by_user,
+    get_all_issues,
+)
+from auth import verify_password, create_access_token, get_current_user, require_admin
 
-def create_user(db: Session, username: str, password: str, name: str, role: str, rank: str, unit: str):
-    user = User(
-        username=username,
-        password_hash=hash_password(password),
-        name=name,
-        role=role,
-        rank=rank,
-        unit=unit,
+Base.metadata.create_all(bind=engine)
+
+app = FastAPI(title="B-MAS API")
+
+# Codespaces 포트 주소를 폭넓게 허용
+origins = [
+    "http://localhost:3000",
+    "http://127.0.0.1:3000",
+    "http://localhost:3001",
+    "http://127.0.0.1:3001",
+    "http://localhost:3002",
+    "http://127.0.0.1:3002",
+]
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],   # 개발용
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
+@app.get("/")
+def root():
+    return {"message": "B-MAS API running"}
+
+@app.post("/auth/register", response_model=UserOut)
+def register(payload: UserCreate, db: Session = Depends(get_db)):
+    exists = get_user_by_username(db, payload.username)
+    if exists:
+        raise HTTPException(status_code=400, detail="이미 존재하는 아이디입니다.")
+    return create_user(
+        db,
+        username=payload.username,
+        password=payload.password,
+        name=payload.name,
+        role=payload.role,
+        rank=payload.rank,
+        unit=payload.unit,
     )
-    db.add(user)
-    db.commit()
-    db.refresh(user)
+
+@app.post("/auth/login", response_model=Token)
+def login(payload: LoginRequest, db: Session = Depends(get_db)):
+    user = get_user_by_username(db, payload.username)
+    if not user or not verify_password(payload.password, user.password_hash):
+        raise HTTPException(status_code=401, detail="아이디 또는 비밀번호가 올바르지 않습니다.")
+
+    token = create_access_token({"sub": str(user.id), "role": user.role})
+    return {
+        "access_token": token,
+        "token_type": "bearer",
+        "user": user,
+    }
+
+@app.post("/auth/login-form", response_model=Token)
+def login_form(
+    username: str = Form(...),
+    password: str = Form(...),
+    db: Session = Depends(get_db),
+):
+    user = get_user_by_username(db, username)
+    if not user or not verify_password(password, user.password_hash):
+        raise HTTPException(status_code=401, detail="아이디 또는 비밀번호가 올바르지 않습니다.")
+
+    token = create_access_token({"sub": str(user.id), "role": user.role})
+    return {
+        "access_token": token,
+        "token_type": "bearer",
+        "user": user,
+    }
+
+@app.get("/auth/me", response_model=UserOut)
+def me(user: User = Depends(get_current_user)):
     return user
 
+@app.get("/users", response_model=list[UserOut])
+def list_users(db: Session = Depends(get_db), _: User = Depends(require_admin)):
+    return get_users(db)
 
-def get_user_by_username(db: Session, username: str):
-    return db.query(User).filter(User.username == username).first()
+@app.post("/measurements", response_model=MeasurementOut)
+def save_measurement(
+    payload: MeasurementCreate,
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
+    return create_measurement(db, user_id=user.id, data=payload)
 
+@app.get("/measurements/me", response_model=list[MeasurementOut])
+def my_measurements(
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
+    return get_measurements_by_user(db, user.id)
 
-def get_user_by_id(db: Session, user_id: int):
-    return db.query(User).filter(User.id == user_id).first()
+@app.get("/measurements", response_model=list[MeasurementOut])
+def all_measurements(
+    db: Session = Depends(get_db),
+    _: User = Depends(require_admin),
+):
+    return get_all_measurements(db)
 
+@app.put("/measurements/{record_id}", response_model=MeasurementOut)
+def edit_measurement(
+    record_id: int,
+    payload: MeasurementUpdate,
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
+    record = get_measurement(db, record_id)
+    if not record:
+        raise HTTPException(status_code=404, detail="기록을 찾을 수 없습니다.")
 
-def get_users(db: Session):
-    return db.query(User).order_by(User.id.desc()).all()
+    if user.role not in ["admin", "logistics"] and record.user_id != user.id:
+        raise HTTPException(status_code=403, detail="수정 권한이 없습니다.")
 
+    return update_measurement(db, record, payload)
 
-def create_measurement(db: Session, user_id: int, data):
-    record = MeasurementRecord(user_id=user_id, **data.dict())
-    db.add(record)
-    db.commit()
-    db.refresh(record)
-    return record
+@app.delete("/measurements/{record_id}")
+def remove_measurement(
+    record_id: int,
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
+    record = get_measurement(db, record_id)
+    if not record:
+        raise HTTPException(status_code=404, detail="기록을 찾을 수 없습니다.")
 
+    if user.role not in ["admin", "logistics"] and record.user_id != user.id:
+        raise HTTPException(status_code=403, detail="삭제 권한이 없습니다.")
 
-def get_measurements_by_user(db: Session, user_id: int):
-    return (
-        db.query(MeasurementRecord)
-        .filter(MeasurementRecord.user_id == user_id)
-        .order_by(MeasurementRecord.created_at.desc())
-        .all()
-    )
+    delete_measurement(db, record)
+    return {"ok": True}
 
+@app.post("/issues", response_model=ClothingIssueOut)
+def save_issue(
+    payload: ClothingIssueCreate,
+    db: Session = Depends(get_db),
+    _: User = Depends(require_admin),
+):
+    return create_issue(db, payload)
 
-def get_all_measurements(db: Session):
-    return db.query(MeasurementRecord).order_by(MeasurementRecord.created_at.desc()).all()
+@app.get("/issues/me", response_model=list[ClothingIssueOut])
+def my_issues(
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
+    return get_issues_by_user(db, user.id)
 
-
-def get_measurement(db: Session, record_id: int):
-    return db.query(MeasurementRecord).filter(MeasurementRecord.id == record_id).first()
-
-
-def update_measurement(db: Session, record: MeasurementRecord, data):
-    for key, value in data.dict(exclude_unset=True).items():
-        setattr(record, key, value)
-    db.commit()
-    db.refresh(record)
-    return record
-
-
-def delete_measurement(db: Session, record: MeasurementRecord):
-    db.delete(record)
-    db.commit()
-
-
-def create_issue(db: Session, data):
-    issue = ClothingIssue(**data.dict())
-    db.add(issue)
-    db.commit()
-    db.refresh(issue)
-    return issue
-
-
-def get_issues_by_user(db: Session, user_id: int):
-    return (
-        db.query(ClothingIssue)
-        .filter(ClothingIssue.user_id == user_id)
-        .order_by(ClothingIssue.issued_at.desc())
-        .all()
-    )
-
-
-def get_all_issues(db: Session):
-    return db.query(ClothingIssue).order_by(ClothingIssue.issued_at.desc()).all()
+@app.get("/issues", response_model=list[ClothingIssueOut])
+def all_issues(
+    db: Session = Depends(get_db),
+    _: User = Depends(require_admin),
+):
+    return get_all_issues(db)

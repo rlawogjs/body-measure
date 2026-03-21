@@ -105,15 +105,17 @@ const Table = styled.div`
   overflow: hidden;
 `;
 
-const Row = styled.div`
+const Row = styled.div.withConfig({
+  shouldForwardProp: (prop) => !["$header"].includes(prop),
+})`
   display: grid;
   grid-template-columns: 1.5fr 0.8fr 0.7fr;
   gap: 10px;
   padding: 14px 16px;
   align-items: center;
   border-top: 1px solid var(--line-soft);
-  background: ${({ header }) => (header ? "var(--paper-2)" : "transparent")};
-  font-weight: ${({ header }) => (header ? 800 : 500)};
+  background: ${({ $header }) => ($header ? "var(--paper-2)" : "transparent")};
+  font-weight: ${({ $header }) => ($header ? 800 : 500)};
 
   &:first-child {
     border-top: 0;
@@ -485,7 +487,7 @@ export default function ResultPage() {
         <SectionTitle>결과</SectionTitle>
         <SectionDesc>기준 길이 입력이 없어 먼저 이전 단계를 완료해야 합니다.</SectionDesc>
         <ButtonRow>
-          <Button primary onClick={() => nav("/calibrate")}>
+          <Button $primary onClick={() => nav("/calibrate")}>
             기준 입력으로
           </Button>
         </ButtonRow>
@@ -534,7 +536,7 @@ export default function ResultPage() {
         </ControlRow>
 
         <Table>
-          <Row header>
+          <Row $header>
             <div>항목</div>
             <div>값</div>
             <div>신뢰도</div>
