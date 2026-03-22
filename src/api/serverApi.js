@@ -37,7 +37,8 @@ export function clearAuth() {
 async function request(path, options = {}) {
   const token = getToken();
   const headers = new Headers(options.headers || {});
-  const isFormData = typeof FormData !== "undefined" && options.body instanceof FormData;
+  const isFormData =
+    typeof FormData !== "undefined" && options.body instanceof FormData;
 
   if (!headers.has("Content-Type") && !isFormData && options.body) {
     headers.set("Content-Type", "application/json");
@@ -47,10 +48,27 @@ async function request(path, options = {}) {
     headers.set("Authorization", `Bearer ${token}`);
   }
 
-  const res = await fetch(`${API_BASE}${path}`, {
-    ...options,
-    headers,
-  });
+  const url = `${API_BASE}${path}`;
+  console.log("[API REQUEST]", url);
+
+  let res;
+  try {
+    res = await fetch(url, {
+      ...options,
+      headers,
+    });
+  } catch (error) {
+    console.error("[FETCH ERROR]", {
+      url,
+      apiBase: API_BASE,
+      path,
+      message: error?.message,
+    });
+
+    throw new Error(
+      `서버에 연결할 수 없습니다.\n현재 API 주소: ${API_BASE}\nCodespaces라면 127.0.0.1 대신 8000 포트의 app.github.dev 주소를 .env에 넣어야 합니다.`
+    );
+  }
 
   const data = await res.json().catch(() => null);
 
@@ -58,6 +76,13 @@ async function request(path, options = {}) {
     if (res.status === 401) {
       clearAuth();
     }
+
+    console.error("[API RESPONSE ERROR]", {
+      url,
+      status: res.status,
+      data,
+    });
+
     throw new Error(data?.detail || "요청 실패");
   }
 

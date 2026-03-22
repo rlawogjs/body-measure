@@ -1,127 +1,172 @@
-import React, { useEffect, useState } from "react";
-import styled from "styled-components";
+import React, { useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { getCurrentUser, login } from "../utils/authStorage";
+import { login } from "../utils/authStorage";
 
-const Grid = styled.div`
-  display: grid;
-  grid-template-columns: 1.05fr 0.95fr;
-  gap: 20px;
-  @media (max-width: 900px) { grid-template-columns: 1fr; }
-`;
-const Card = styled.section`
-  background: var(--paper);
-  border: 1.5px solid var(--line);
-  border-radius: 28px;
-  box-shadow: var(--shadow);
-  padding: 28px;
-`;
-const Kicker = styled.div`
-  color: var(--accent-2);
-  font-size: 13px;
-  font-weight: 800;
-  letter-spacing: .12em;
-  text-transform: uppercase;
-`;
-const InputWrap = styled.div`
-  margin-top: 18px;
-  display: grid;
-  gap: 10px;
-`;
-const Input = styled.input`
-  width: 100%;
-  padding: 15px 16px;
-  border-radius: 16px;
-  border: 1.5px solid var(--line);
-  background: #fcfaf6;
-  color: var(--text);
-`;
-const Button = styled.button`
-  margin-top: 16px;
-  border: 1.5px solid var(--accent);
-  background: var(--accent);
-  color: white;
-  padding: 12px 18px;
-  border-radius: 999px;
-  font-weight: 800;
-  cursor: pointer;
-  opacity: ${({ disabled }) => (disabled ? 0.6 : 1)};
-`;
-const Demo = styled.div`
-  margin-top: 16px;
-  display: grid;
-  gap: 10px;
-`;
-const DemoItem = styled.div`
-  border: 1px solid var(--line-soft);
-  border-radius: 16px;
-  background: var(--paper-2);
-  padding: 14px 16px;
-`;
-
-export default function LoginPage() {
-  const nav = useNavigate();
-  const current = getCurrentUser();
-  const [username, setUsername] = useState("soldier1");
-  const [password, setPassword] = useState("1234");
+function LoginPage() {
+  const navigate = useNavigate();
+  const [form, setForm] = useState({
+    username: "",
+    password: "",
+  });
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
 
-  useEffect(() => {
-    if (current) nav("/dashboard");
-  }, [current, nav]);
+  const onChange = (e) => {
+    const { name, value } = e.target;
+    setForm((prev) => ({
+      ...prev,
+      [name]: value,
+    }));
+  };
 
-  async function onSubmit(e) {
+  const onSubmit = async (e) => {
     e.preventDefault();
-    setLoading(true);
     setError("");
+    setLoading(true);
+
     try {
-      await login(username, password);
-      nav("/dashboard");
+      const user = await login(form.username.trim(), form.password);
+
+      if (user?.role === "admin" || user?.role === "logistics") {
+        navigate("/admin");
+      } else {
+        navigate("/dashboard");
+      }
     } catch (err) {
-      setError(err.message || "계정 정보가 맞지 않습니다.");
+      console.error(err);
+      setError(err.message || "로그인에 실패했습니다.");
     } finally {
       setLoading(false);
     }
-  }
+  };
 
   return (
-    <Grid>
-      <Card>
-        <Kicker>Military Clothing & Measurement</Kicker>
-        <h1 style={{ color: "var(--accent)", marginTop: 10 }}>군 피복·치수 관리 시스템</h1>
-        <p style={{ marginTop: 12 }}>
-          병사 개인 치수 기록, 군 피복 사이즈 추천, 보급 및 지급 이력 관리를 서버 DB 기반으로 통합한 버전입니다.
-        </p>
-        <div style={{ marginTop: 28, borderTop: "1px solid var(--line-soft)", paddingTop: 18 }}>
-          <h3>적용 방향</h3>
-          <p style={{ marginTop: 10 }}>측정 데이터를 개인 기록으로만 두지 않고 피복 추천과 지급 이력까지 연결해서 군수 행정을 보조합니다.</p>
+    <div style={styles.page}>
+      <div style={styles.card}>
+        <h1 style={styles.title}>B-MAS 로그인</h1>
+        <p style={styles.subtitle}>군 피복 치수 관리 시스템</p>
+
+        <form onSubmit={onSubmit} style={styles.form}>
+          <div>
+            <label style={styles.label}>아이디</label>
+            <input
+              style={styles.input}
+              type="text"
+              name="username"
+              value={form.username}
+              onChange={onChange}
+              placeholder="아이디 입력"
+              autoComplete="username"
+            />
+          </div>
+
+          <div>
+            <label style={styles.label}>비밀번호</label>
+            <input
+              style={styles.input}
+              type="password"
+              name="password"
+              value={form.password}
+              onChange={onChange}
+              placeholder="비밀번호 입력"
+              autoComplete="current-password"
+            />
+          </div>
+
+          {error ? <div style={styles.error}>{error}</div> : null}
+
+          <button type="submit" style={styles.button} disabled={loading}>
+            {loading ? "로그인 중..." : "로그인"}
+          </button>
+        </form>
+
+        <div style={styles.demoBox}>
+          <div><strong>테스트 계정</strong></div>
+          <div>관리자: admin1 / admin123</div>
+          <div>군수담당: logi1 / logi123</div>
+          <div>병사: soldier1 / soldier123</div>
         </div>
-      </Card>
-
-      <Card as="form" onSubmit={onSubmit}>
-        <h2 style={{ color: "var(--accent)" }}>로그인</h2>
-        <p style={{ marginTop: 10 }}>백엔드 DB에 저장된 계정으로 로그인합니다.</p>
-
-        <InputWrap>
-          <label>아이디</label>
-          <Input value={username} onChange={(e) => setUsername(e.target.value)} />
-        </InputWrap>
-
-        <InputWrap>
-          <label>비밀번호</label>
-          <Input type="password" value={password} onChange={(e) => setPassword(e.target.value)} />
-        </InputWrap>
-
-        {error ? <p style={{ marginTop: 12, color: "var(--danger)" }}>{error}</p> : null}
-        <Button type="submit" disabled={loading}>{loading ? "접속 중..." : "시스템 접속"}</Button>
-
-        <Demo>
-          <DemoItem><strong>병사</strong><br />soldier1 / 1234</DemoItem>
-          <DemoItem><strong>군수담당</strong><br />logi1 / 1234</DemoItem>
-          <DemoItem><strong>관리자</strong><br />admin1 / 1234</DemoItem>
-        </Demo>
-      </Card>
-    </Grid>
+      </div>
+    </div>
   );
 }
+
+const styles = {
+  page: {
+    minHeight: "100vh",
+    display: "flex",
+    justifyContent: "center",
+    alignItems: "center",
+    background:
+      "linear-gradient(135deg, #e8f0ff 0%, #f7faff 50%, #eef4ff 100%)",
+    padding: "24px",
+  },
+  card: {
+    width: "100%",
+    maxWidth: "420px",
+    background: "#fff",
+    borderRadius: "20px",
+    padding: "32px",
+    boxShadow: "0 16px 40px rgba(0,0,0,0.08)",
+    border: "1px solid #e5e7eb",
+  },
+  title: {
+    margin: 0,
+    fontSize: "32px",
+    color: "#111827",
+  },
+  subtitle: {
+    marginTop: "8px",
+    marginBottom: "24px",
+    color: "#6b7280",
+  },
+  form: {
+    display: "grid",
+    gap: "16px",
+  },
+  label: {
+    display: "block",
+    marginBottom: "8px",
+    fontWeight: "600",
+    color: "#374151",
+  },
+  input: {
+    width: "100%",
+    padding: "12px 14px",
+    borderRadius: "10px",
+    border: "1px solid #cbd5e1",
+    fontSize: "15px",
+    boxSizing: "border-box",
+  },
+  button: {
+    marginTop: "4px",
+    padding: "12px 14px",
+    border: "none",
+    borderRadius: "10px",
+    background: "#2563eb",
+    color: "#fff",
+    fontWeight: "700",
+    fontSize: "15px",
+    cursor: "pointer",
+  },
+  error: {
+    padding: "12px 14px",
+    borderRadius: "10px",
+    background: "#fef2f2",
+    color: "#b91c1c",
+    border: "1px solid #fecaca",
+    fontSize: "14px",
+  },
+  demoBox: {
+    marginTop: "20px",
+    padding: "14px",
+    borderRadius: "12px",
+    background: "#f8fafc",
+    border: "1px solid #e2e8f0",
+    color: "#334155",
+    fontSize: "14px",
+    lineHeight: 1.7,
+  },
+};
+
+export default LoginPage;

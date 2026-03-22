@@ -1,21 +1,8 @@
 import {
-  clearAuth,
-  fetchMe,
-  getCurrentUser as getStoredUser,
   login as serverLogin,
+  clearAuth,
+  getCurrentUser as getServerCurrentUser,
 } from "../api/serverApi";
-
-export function getCurrentUser() {
-  return getStoredUser();
-}
-
-export function loadCurrentUser() {
-  return getCurrentUser();
-}
-
-export function readCurrentUser() {
-  return getCurrentUser();
-}
 
 export async function login(username, password) {
   return serverLogin(username, password);
@@ -25,15 +12,19 @@ export function logout() {
   clearAuth();
 }
 
-export async function hydrateCurrentUser() {
-  try {
-    return await fetchMe();
-  } catch {
-    return null;
-  }
+export function getStoredUser() {
+  return getServerCurrentUser();
 }
 
-export function isPrivileged(user = getCurrentUser()) {
-  const role = user?.role;
-  return role === "admin" || role === "logistics";
+export function getCurrentUser() {
+  return getServerCurrentUser();
+}
+
+export function isLoggedIn() {
+  return !!getServerCurrentUser();
+}
+
+export function isPrivileged() {
+  const user = getServerCurrentUser();
+  return user?.role === "admin" || user?.role === "logistics";
 }
