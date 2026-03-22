@@ -1,8 +1,7 @@
-from datetime import datetime
 from sqlalchemy.orm import Session
 
 from auth import hash_password
-from models import ClothingIssue, MeasurementRecord, User
+from models import User, MeasurementRecord, ClothingIssue
 
 
 def create_user(
@@ -11,14 +10,11 @@ def create_user(
     password: str,
     name: str,
     role: str,
-    rank: str,
-    unit: str,
-    approval_status: str = "pending",
-    assigned_logistics_id: int | None = None,
-    is_primary_logistics: bool = False,
-    approved_by_id: int | None = None,
-    approved_at: datetime | None = None,
-    approval_note: str = "",
+    rank: str | None = None,
+    unit: str | None = None,
+    manager_user_id: int | None = None,
+    approved: bool = False,
+    approved_by_user_id: int | None = None,
 ):
     user = User(
         username=username,
@@ -27,12 +23,9 @@ def create_user(
         role=role,
         rank=rank,
         unit=unit,
-        approval_status=approval_status,
-        assigned_logistics_id=assigned_logistics_id,
-        is_primary_logistics=is_primary_logistics,
-        approved_by_id=approved_by_id,
-        approved_at=approved_at,
-        approval_note=approval_note,
+        manager_user_id=manager_user_id,
+        approved=approved,
+        approved_by_user_id=approved_by_user_id,
     )
     db.add(user)
     db.commit()
@@ -49,28 +42,63 @@ def get_user_by_id(db: Session, user_id: int):
 
 
 def get_users(db: Session):
-    return db.query(User).order_by(User.created_at.desc(), User.id.desc()).all()
+    return db.query(User).order_by(User.id.asc()).all()
 
 
-def get_approved_logistics(db: Session):
+def get_public_managers(db: Session):
     return (
         db.query(User)
-        .filter(User.role == "logistics", User.approval_status == "approved")
-        .order_by(User.is_primary_logistics.desc(), User.name.asc())
+        .filter(User.role.in_(["logistics", "chief_logistics"]), User.approved == True)
+        .order_by(User.id.asc())
         .all()
     )
 
 
-def get_primary_logistics(db: Session):
-    return (
-        db.query(User)
-        .filter(User.role == "logistics", User.is_primary_logistics.is_(True), User.approval_status == "approved")
-        .first()
-    )
+def get_pending_users_for_approver(db: Session, approver: User):
+    query = db.query(User).filter(User.approved == False, User.role != "admin")
+
+    if approver.role == "admin" or approver.role == "chief_logistics":
+        return query.order_by(User.id.asc()).all()
+
+    if approver.role == "logistics":
+        return (
+            query.filter(
+                User.role.in_(["soldier", "officer"]),
+                User.manager_user_id == approver.id,
+            )
+            .order_by(User.id.asc())
+            .all()
+        )
+
+    return []
+
+
+def approve_user(db: Session, target_user: User, approved_by_user_id: int):
+    target_user.approved = True
+    target_user.approved_by_user_id = approved_by_user_id
+    db.commit()
+    db.refresh(target_user)
+    return target_user
+
+
+def update_user_manager(db: Session, target_user: User, manager_user_id: int):
+    target_user.manager_user_id = manager_user_id
+    target_user.approved = False
+    target_user.approved_by_user_id = None
+    db.commit()
+    db.refresh(target_user)
+    return target_user
 
 
 def create_measurement(db: Session, user_id: int, data):
-    record = MeasurementRecord(user_id=user_id, **data.model_dump())
+    record = MeasurementRecord(
+        user_id=user_id,
+        height_mm=data.height_mm,
+        weight_kg=data.weight_kg,
+        chest_cm=data.chest_cm,
+        waist_cm=data.waist_cm,
+        bmi=data.bmi,
+    )
     db.add(record)
     db.commit()
     db.refresh(record)
@@ -94,9 +122,12 @@ def get_measurement(db: Session, record_id: int):
     return db.query(MeasurementRecord).filter(MeasurementRecord.id == record_id).first()
 
 
-def update_measurement(db: Session, record: MeasurementRecord, data):
-    for key, value in data.model_dump(exclude_unset=True).items():
-        setattr(record, key, value)
+def update_measurement(db: Session, record: MeasurementRecord, payload):
+    for field in ["height_mm", "weight_kg", "chest_cm", "waist_cm", "bmi"]:
+        value = getattr(payload, field)
+        if value is not None:
+            setattr(record, field, value)
+
     db.commit()
     db.refresh(record)
     return record
@@ -107,8 +138,15 @@ def delete_measurement(db: Session, record: MeasurementRecord):
     db.commit()
 
 
-def create_issue(db: Session, data):
-    issue = ClothingIssue(**data.model_dump())
+def create_issue(db: Session, payload):
+    issue = ClothingIssue(
+        user_id=payload.user_id,
+        item_name=payload.item_name,
+        size=payload.size,
+        quantity=payload.quantity,
+        status=payload.status,
+        note=payload.note,
+    )
     db.add(issue)
     db.commit()
     db.refresh(issue)

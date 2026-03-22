@@ -1,7 +1,21 @@
 from datetime import datetime
 from typing import Optional
+from pydantic import BaseModel
 
-from pydantic import BaseModel, Field
+
+class LoginRequest(BaseModel):
+    username: str
+    password: str
+
+
+class UserCreate(BaseModel):
+    username: str
+    password: str
+    name: str
+    role: str
+    rank: Optional[str] = None
+    unit: Optional[str] = None
+    manager_user_id: Optional[int] = None
 
 
 class UserOut(BaseModel):
@@ -9,16 +23,11 @@ class UserOut(BaseModel):
     username: str
     name: str
     role: str
-    rank: str
-    unit: str
-    approval_status: str
-    approval_note: str
-    is_primary_logistics: bool
-    assigned_logistics_id: Optional[int] = None
-    approved_by_id: Optional[int] = None
-    assigned_logistics_name: Optional[str] = None
-    approved_by_name: Optional[str] = None
-    approved_at: Optional[datetime] = None
+    rank: Optional[str] = None
+    unit: Optional[str] = None
+    approved: bool
+    manager_user_id: Optional[int] = None
+    approved_by_user_id: Optional[int] = None
     created_at: datetime
 
     class Config:
@@ -31,73 +40,31 @@ class Token(BaseModel):
     user: UserOut
 
 
-class LoginRequest(BaseModel):
-    username: str
-    password: str
-
-
-class UserCreate(BaseModel):
-    username: str
-    password: str
-    name: str
-    role: str = "soldier"
-    rank: str = ""
-    unit: str = ""
-    assigned_logistics_id: Optional[int] = None
-
-
-class UserApprovalUpdate(BaseModel):
-    action: str
-    note: str = ""
-
-
-class ProfileUpdate(BaseModel):
-    assigned_logistics_id: Optional[int] = None
-
-
 class MeasurementCreate(BaseModel):
-    image_id: str = ""
-    height_mm: float
-    weight_kg: float
-    bmi: float
-    shoulder_width_mm: float = 0
-    upper_body_length_mm: float = 0
-    lower_body_length_mm: float = 0
-    waist_height_ratio: float = 0
-    shoulder_waist_ratio: float = 0
-    upper_lower_ratio: float = 0
-    note: str = ""
+    height_mm: Optional[float] = None
+    weight_kg: Optional[float] = None
+    chest_cm: Optional[float] = None
+    waist_cm: Optional[float] = None
+    bmi: Optional[float] = None
 
 
 class MeasurementUpdate(BaseModel):
-    image_id: Optional[str] = None
     height_mm: Optional[float] = None
     weight_kg: Optional[float] = None
+    chest_cm: Optional[float] = None
+    waist_cm: Optional[float] = None
     bmi: Optional[float] = None
-    shoulder_width_mm: Optional[float] = None
-    upper_body_length_mm: Optional[float] = None
-    lower_body_length_mm: Optional[float] = None
-    waist_height_ratio: Optional[float] = None
-    shoulder_waist_ratio: Optional[float] = None
-    upper_lower_ratio: Optional[float] = None
-    note: Optional[str] = None
 
 
 class MeasurementOut(BaseModel):
     id: int
     user_id: int
-    image_id: str
-    height_mm: float
-    weight_kg: float
-    bmi: float
-    shoulder_width_mm: float
-    upper_body_length_mm: float
-    lower_body_length_mm: float
-    waist_height_ratio: float
-    shoulder_waist_ratio: float
-    upper_lower_ratio: float
+    height_mm: Optional[float] = None
+    weight_kg: Optional[float] = None
+    chest_cm: Optional[float] = None
+    waist_cm: Optional[float] = None
+    bmi: Optional[float] = None
     created_at: datetime
-    note: str
 
     class Config:
         from_attributes = True
@@ -107,9 +74,9 @@ class ClothingIssueCreate(BaseModel):
     user_id: int
     item_name: str
     size: str
-    quantity: int = Field(default=1, ge=1)
+    quantity: int = 1
     status: str = "issued"
-    note: str = ""
+    note: Optional[str] = None
 
 
 class ClothingIssueOut(BaseModel):
@@ -119,12 +86,16 @@ class ClothingIssueOut(BaseModel):
     size: str
     quantity: int
     status: str
+    note: Optional[str] = None
     issued_at: datetime
-    note: str
 
     class Config:
         from_attributes = True
 
 
-UserOut.model_rebuild()
-Token.model_rebuild()
+class ApproveUserRequest(BaseModel):
+    approved: bool = True
+
+
+class AssignManagerRequest(BaseModel):
+    manager_user_id: int
