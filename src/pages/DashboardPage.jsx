@@ -1,292 +1,150 @@
 import React, { useEffect, useMemo, useState } from "react";
-import { useNavigate } from "react-router-dom";
-import {
-  getCurrentUser,
-  getMyMeasurements,
-  getMyIssues,
-  getAllMeasurements,
-  getAllIssues,
-} from "../api/serverApi";
+import styled from "styled-components";
+import { Link } from "react-router-dom";
+import { fetchMe, getLogisticsOptions, getMyIssues, getMyMeasurements, updateProfile } from "../api/serverApi";
+import { getCurrentUser, isPrivileged } from "../utils/authStorage";
+import { formatDateTime } from "../utils/measurementHistory";
 
-function DashboardPage() {
-  const navigate = useNavigate();
-  const [user, setUser] = useState(null);
-  const [measurements, setMeasurements] = useState([]);
+const Grid = styled.div`display:grid; gap:18px;`;
+const Card = styled.section`background:var(--paper); border:1.5px solid var(--line); border-radius:28px; box-shadow:var(--shadow-soft); padding:24px;`;
+const Hero = styled(Card)``;
+const BadgeRow = styled.div`margin-top:18px; display:flex; gap:10px; flex-wrap:wrap;`;
+const Pill = styled.div`border:1px solid var(--line); background:var(--paper-2); padding:8px 12px; border-radius:999px; font-size:12px; color:var(--muted); font-weight:700;`;
+const StatGrid = styled.div`display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); gap:16px; @media (max-width:980px){grid-template-columns:repeat(2,minmax(0,1fr));} @media (max-width:640px){grid-template-columns:1fr;}`;
+const StatCard = styled(Card)``;
+const ActionGrid = styled.div`display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:14px; margin-top:18px; @media (max-width:900px){grid-template-columns:1fr;}`;
+const ActionCard = styled(Link)`display:block; border:1px solid var(--line-soft); background:var(--paper-2); border-radius:20px; padding:18px;`;
+const Select = styled.select`width:100%; padding:13px 14px; border-radius:14px; border:1.5px solid var(--line); background:#fcfaf6; color:var(--text); margin-top:10px;`;
+const Button = styled.button`margin-top:14px; border:1.5px solid var(--accent); background:var(--accent); color:#fff; padding:11px 16px; border-radius:999px; font-weight:800; cursor:pointer;`;
+const List = styled.div`display:grid; gap:12px; margin-top:16px;`;
+const ListItem = styled.div`border:1px solid var(--line-soft); background:var(--paper-2); border-radius:18px; padding:14px 16px;`;
+
+function roleLabel(role) {
+  if (role === "admin") return "관리자";
+  if (role === "logistics") return "군수담당";
+  if (role === "officer") return "간부";
+  return "병사";
+}
+function approvalLabel(status) {
+  return status === "approved" ? "승인 완료" : status === "rejected" ? "반려" : "승인 대기";
+}
+function mmToCm(mm) {
+  const n = Number(mm);
+  return Number.isFinite(n) ? (n / 10).toFixed(1) : "-";
+}
+
+export default function DashboardPage() {
+  const [user, setUser] = useState(getCurrentUser());
+  const [records, setRecords] = useState([]);
   const [issues, setIssues] = useState([]);
-  const [allMeasurements, setAllMeasurements] = useState([]);
-  const [allIssues, setAllIssues] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState("");
+  const [logisticsOptions, setLogisticsOptions] = useState([]);
+  const [assignedLogisticsId, setAssignedLogisticsId] = useState(String(getCurrentUser()?.assigned_logistics_id || ""));
+  const [profileMessage, setProfileMessage] = useState("");
+  const privileged = isPrivileged(user);
 
-  const isAdmin = user?.role === "admin" || user?.role === "logistics";
-
-  useEffect(() => {
-    const loadDashboard = async () => {
-      try {
-        setLoading(true);
-        setError("");
-
-        const me = await getCurrentUser();
-        setUser(me);
-
-        const [myMeasurements, myIssues] = await Promise.all([
-          getMyMeasurements(),
-          getMyIssues(),
-        ]);
-
-        setMeasurements(Array.isArray(myMeasurements) ? myMeasurements : []);
-        setIssues(Array.isArray(myIssues) ? myIssues : []);
-
-        if (me?.role === "admin" || me?.role === "logistics") {
-          const [adminMeasurements, adminIssues] = await Promise.all([
-            getAllMeasurements(),
-            getAllIssues(),
-          ]);
-
-          setAllMeasurements(
-            Array.isArray(adminMeasurements) ? adminMeasurements : []
-          );
-          setAllIssues(Array.isArray(adminIssues) ? adminIssues : []);
-        }
-      } catch (err) {
-        console.error(err);
-        setError("대시보드 정보를 불러오지 못했습니다. 다시 로그인해주세요.");
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    loadDashboard();
-  }, []);
-
-  const latestMeasurement = useMemo(() => {
-    if (!measurements.length) return null;
-    return [...measurements].sort(
-      (a, b) => new Date(b.created_at) - new Date(a.created_at)
-    )[0];
-  }, [measurements]);
-
-  const latestIssue = useMemo(() => {
-    if (!issues.length) return null;
-    return [...issues].sort(
-      (a, b) =>
-        new Date(b.issued_at || b.created_at) -
-        new Date(a.issued_at || a.created_at)
-    )[0];
-  }, [issues]);
-
-  if (loading) {
-    return (
-      <div style={styles.page}>
-        <div style={styles.card}>불러오는 중...</div>
-      </div>
-    );
+  async function load() {
+    try {
+      const [me, measurementRows, issueRows, logisticsRows] = await Promise.all([
+        fetchMe(),
+        getMyMeasurements().catch(() => []),
+        getMyIssues().catch(() => []),
+        getLogisticsOptions().catch(() => []),
+      ]);
+      setUser(me);
+      setAssignedLogisticsId(String(me?.assigned_logistics_id || ""));
+      setRecords(Array.isArray(measurementRows) ? measurementRows : []);
+      setIssues(Array.isArray(issueRows) ? issueRows : []);
+      setLogisticsOptions(Array.isArray(logisticsRows) ? logisticsRows : []);
+    } catch (err) {
+      console.error(err);
+    }
   }
 
-  if (error) {
-    return (
-      <div style={styles.page}>
-        <div style={styles.card}>
-          <h2 style={styles.title}>오류</h2>
-          <p>{error}</p>
-          <button style={styles.button} onClick={() => navigate("/login")}>
-            로그인으로 이동
-          </button>
-        </div>
-      </div>
-    );
+  useEffect(() => { load(); }, []);
+
+  const latestRecord = useMemo(() => records[0] || null, [records]);
+  const latestIssue = useMemo(() => issues[0] || null, [issues]);
+  const canChangeLogistics = user?.role === "soldier" || user?.role === "officer";
+
+  async function onChangeLogistics() {
+    setProfileMessage("");
+    try {
+      const updated = await updateProfile({ assigned_logistics_id: Number(assignedLogisticsId) });
+      setUser(updated);
+      setProfileMessage("군수담당 변경 요청을 저장했습니다. 다시 승인될 때까지 승인 대기 상태가 됩니다.");
+    } catch (err) {
+      setProfileMessage(err.message || "군수담당 변경에 실패했습니다.");
+    }
   }
 
   return (
-    <div style={styles.page}>
-      <div style={styles.headerRow}>
-        <div>
-          <h1 style={styles.mainTitle}>B-MAS 대시보드</h1>
-          <p style={styles.subtitle}>
-            환영합니다, {user?.name || user?.username}님
-          </p>
-        </div>
-        <div style={styles.badge}>권한: {user?.role || "unknown"}</div>
-      </div>
+    <Grid>
+      <Hero>
+        <div style={{ color: "var(--accent)", fontWeight: 900, fontSize: 12, letterSpacing: ".08em" }}>● DASHBOARD</div>
+        <h1 style={{ marginTop: 12, color: "var(--accent)" }}>B-MAS 개인 대시보드</h1>
+        <p style={{ marginTop: 10 }}>
+          계정 승인 상태, 담당 군수담당, 최근 측정과 지급 이력을 한눈에 확인합니다.
+        </p>
+        <BadgeRow>
+          <Pill>{user?.name || user?.username || "-"}</Pill>
+          <Pill>{roleLabel(user?.role)}</Pill>
+          <Pill>{user?.rank || "계급 미입력"}</Pill>
+          <Pill>{user?.unit || "소속 미입력"}</Pill>
+          <Pill>{approvalLabel(user?.approval_status)}</Pill>
+        </BadgeRow>
+      </Hero>
 
-      <div style={styles.grid}>
-        <div style={styles.card}>
-          <h2 style={styles.title}>내 정보</h2>
-          <p>
-            <strong>이름:</strong> {user?.name || "-"}
-          </p>
-          <p>
-            <strong>아이디:</strong> {user?.username || "-"}
-          </p>
-          <p>
-            <strong>계급:</strong> {user?.rank || "-"}
-          </p>
-          <p>
-            <strong>소속:</strong> {user?.unit || "-"}
-          </p>
-        </div>
+      <StatGrid>
+        <StatCard><div>최근 키</div><h2 style={{ marginTop: 10, color: "var(--accent)" }}>{latestRecord ? `${mmToCm(latestRecord.height_mm)} cm` : "-"}</h2></StatCard>
+        <StatCard><div>최근 체중</div><h2 style={{ marginTop: 10, color: "var(--accent)" }}>{latestRecord ? `${Number(latestRecord.weight_kg).toFixed(1)} kg` : "-"}</h2></StatCard>
+        <StatCard><div>측정 기록 수</div><h2 style={{ marginTop: 10, color: "var(--accent)" }}>{records.length}</h2></StatCard>
+        <StatCard><div>지급/추천 이력 수</div><h2 style={{ marginTop: 10, color: "var(--accent)" }}>{issues.length}</h2></StatCard>
+      </StatGrid>
 
-        <div style={styles.card}>
-          <h2 style={styles.title}>내 측정 현황</h2>
-          <p>
-            <strong>총 측정 기록:</strong> {measurements.length}건
-          </p>
-          {latestMeasurement ? (
-            <>
-              <p>
-                <strong>최근 키:</strong> {latestMeasurement.height_cm ?? "-"} cm
-              </p>
-              <p>
-                <strong>최근 가슴:</strong> {latestMeasurement.chest_cm ?? "-"} cm
-              </p>
-              <p>
-                <strong>최근 허리:</strong> {latestMeasurement.waist_cm ?? "-"} cm
-              </p>
-              <p>
-                <strong>최근 등록일:</strong>{" "}
-                {formatDate(latestMeasurement.created_at)}
-              </p>
-            </>
-          ) : (
-            <p>아직 측정 기록이 없습니다.</p>
-          )}
-          <button style={styles.button} onClick={() => navigate("/upload")}>
-            새 측정 시작
-          </button>
-        </div>
-
-        <div style={styles.card}>
-          <h2 style={styles.title}>최근 지급 이력</h2>
-          <p>
-            <strong>총 지급 기록:</strong> {issues.length}건
-          </p>
-          {latestIssue ? (
-            <>
-              <p>
-                <strong>품목:</strong> {latestIssue.item_name || "-"}
-              </p>
-              <p>
-                <strong>사이즈:</strong> {latestIssue.size || "-"}
-              </p>
-              <p>
-                <strong>수량:</strong> {latestIssue.quantity ?? "-"}
-              </p>
-              <p>
-                <strong>지급일:</strong>{" "}
-                {formatDate(latestIssue.issued_at || latestIssue.created_at)}
-              </p>
-            </>
-          ) : (
-            <p>지급 이력이 없습니다.</p>
-          )}
-          <button
-            style={styles.secondaryButton}
-            onClick={() => navigate("/result")}
-          >
-            측정 결과 보기
-          </button>
-        </div>
-
-        {isAdmin && (
-          <div style={styles.card}>
-            <h2 style={styles.title}>관리자 요약</h2>
-            <p>
-              <strong>전체 측정 기록:</strong> {allMeasurements.length}건
-            </p>
-            <p>
-              <strong>전체 지급 기록:</strong> {allIssues.length}건
-            </p>
-            <button style={styles.button} onClick={() => navigate("/admin")}>
-              관리자 페이지 이동
-            </button>
+      <Card>
+        <h2 style={{ color: "var(--accent)" }}>계정 승인 및 담당 군수담당</h2>
+        <p style={{ marginTop: 10 }}>
+          현재 승인 상태: <strong>{approvalLabel(user?.approval_status)}</strong><br />
+          담당 군수담당: <strong>{user?.assigned_logistics_name || "미지정"}</strong><br />
+          승인 메모: <strong>{user?.approval_note || "-"}</strong>
+        </p>
+        {canChangeLogistics ? (
+          <div style={{ marginTop: 14 }}>
+            <Select value={assignedLogisticsId} onChange={(e) => setAssignedLogisticsId(e.target.value)}>
+              <option value="">군수담당 선택</option>
+              {logisticsOptions.map((item) => (
+                <option key={item.id} value={item.id}>{item.name} · {item.rank || "-"} · {item.unit || "-"}</option>
+              ))}
+            </Select>
+            <Button onClick={onChangeLogistics} disabled={!assignedLogisticsId}>군수담당 변경 요청</Button>
+            {profileMessage ? <p style={{ marginTop: 10 }}>{profileMessage}</p> : null}
           </div>
+        ) : null}
+      </Card>
+
+      <Card>
+        <h2 style={{ color: "var(--accent)" }}>빠른 작업</h2>
+        <ActionGrid>
+          <ActionCard to="/upload"><strong>새 측정 시작</strong><p style={{ marginTop: 8 }}>전신 사진을 다시 업로드해서 측정을 시작합니다.</p></ActionCard>
+          <ActionCard to="/result"><strong>최근 결과 보기</strong><p style={{ marginTop: 8 }}>가장 최근 측정 결과와 추천 치수를 봅니다.</p></ActionCard>
+          <ActionCard to={privileged ? "/admin" : "/result"}><strong>{privileged ? "승인·관리 페이지" : "내 이력 보기"}</strong><p style={{ marginTop: 8 }}>{privileged ? "승인 대기 계정과 전체 현황을 관리합니다." : "내 최근 지급 이력과 추천 품목을 확인합니다."}</p></ActionCard>
+        </ActionGrid>
+      </Card>
+
+      <Card>
+        <h2 style={{ color: "var(--accent)" }}>최근 측정 기록</h2>
+        {!records.length ? <p style={{ marginTop: 12 }}>저장된 측정 기록이 없습니다.</p> : (
+          <List>{records.slice(0, 5).map((entry) => <ListItem key={entry.id}><strong>{formatDateTime(entry.created_at)}</strong><div style={{ marginTop: 8 }}>키 {mmToCm(entry.height_mm)}cm · 체중 {Number(entry.weight_kg).toFixed(1)}kg · BMI {Number(entry.bmi).toFixed(2)}</div></ListItem>)}</List>
         )}
-      </div>
-    </div>
+      </Card>
+
+      <Card>
+        <h2 style={{ color: "var(--accent)" }}>최근 지급 / 추천 이력</h2>
+        {!issues.length ? <p style={{ marginTop: 12 }}>지급 또는 추천 이력이 없습니다.</p> : (
+          <List>{issues.slice(0, 5).map((entry) => <ListItem key={entry.id}><strong>{entry.item_name} · {entry.size}</strong><div style={{ marginTop: 8 }}>수량 {entry.quantity} · 상태 {entry.status} · {formatDateTime(entry.issued_at)}</div></ListItem>)}</List>
+        )}
+        {latestIssue ? <p style={{ marginTop: 12 }}>가장 최근 품목: <strong>{latestIssue.item_name}</strong></p> : null}
+      </Card>
+    </Grid>
   );
 }
-
-function formatDate(value) {
-  if (!value) return "-";
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return value;
-  return date.toLocaleString("ko-KR");
-}
-
-const styles = {
-  page: {
-    minHeight: "100vh",
-    background: "#f4f7fb",
-    padding: "32px 20px",
-  },
-  headerRow: {
-    maxWidth: "1200px",
-    margin: "0 auto 24px auto",
-    display: "flex",
-    justifyContent: "space-between",
-    alignItems: "center",
-    gap: "16px",
-    flexWrap: "wrap",
-  },
-  mainTitle: {
-    margin: 0,
-    fontSize: "32px",
-    fontWeight: "700",
-    color: "#1f2937",
-  },
-  subtitle: {
-    margin: "8px 0 0 0",
-    color: "#6b7280",
-  },
-  badge: {
-    background: "#e5eefc",
-    color: "#1d4ed8",
-    padding: "10px 14px",
-    borderRadius: "999px",
-    fontWeight: "600",
-  },
-  grid: {
-    maxWidth: "1200px",
-    margin: "0 auto",
-    display: "grid",
-    gridTemplateColumns: "repeat(auto-fit, minmax(260px, 1fr))",
-    gap: "20px",
-  },
-  card: {
-    background: "#ffffff",
-    borderRadius: "16px",
-    padding: "24px",
-    boxShadow: "0 10px 30px rgba(0,0,0,0.06)",
-    border: "1px solid #e5e7eb",
-  },
-  title: {
-    marginTop: 0,
-    marginBottom: "16px",
-    fontSize: "20px",
-    color: "#111827",
-  },
-  button: {
-    marginTop: "16px",
-    width: "100%",
-    padding: "12px 14px",
-    border: "none",
-    borderRadius: "10px",
-    background: "#2563eb",
-    color: "#ffffff",
-    fontWeight: "700",
-    cursor: "pointer",
-  },
-  secondaryButton: {
-    marginTop: "16px",
-    width: "100%",
-    padding: "12px 14px",
-    border: "1px solid #cbd5e1",
-    borderRadius: "10px",
-    background: "#ffffff",
-    color: "#111827",
-    fontWeight: "700",
-    cursor: "pointer",
-  },
-};
-
-export default DashboardPage;

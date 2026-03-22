@@ -1,27 +1,43 @@
-from database import SessionLocal, Base, engine
+from datetime import datetime
+
 from crud import create_user, get_user_by_username
+from database import Base, SessionLocal, engine
 
 Base.metadata.create_all(bind=engine)
 
 db = SessionLocal()
+try:
+    if not get_user_by_username(db, "admin1"):
+        admin = create_user(
+            db,
+            username="admin1",
+            password="1234",
+            name="시스템 관리자",
+            role="admin",
+            rank="대위",
+            unit="정보통신대대",
+            approval_status="approved",
+            approved_at=datetime.utcnow(),
+        )
+    else:
+        admin = get_user_by_username(db, "admin1")
 
-seed_users = [
-    {"username": "admin1", "password": "1234", "name": "관리자", "role": "admin", "rank": "대위", "unit": "정보통신대대"},
-    {"username": "logi1", "password": "1234", "name": "군수담당", "role": "logistics", "rank": "중사", "unit": "보급반"},
-    {"username": "soldier1", "password": "1234", "name": "병사1", "role": "soldier", "rank": "상병", "unit": "1중대"},
-]
-
-for item in seed_users:
-    if not get_user_by_username(db, item["username"]):
+    if not get_user_by_username(db, "chieflogi"):
         create_user(
             db,
-            username=item["username"],
-            password=item["password"],
-            name=item["name"],
-            role=item["role"],
-            rank=item["rank"],
-            unit=item["unit"],
+            username="chieflogi",
+            password="1234",
+            name="대표 군수담당",
+            role="logistics",
+            rank="중사",
+            unit="보급반",
+            approval_status="approved",
+            is_primary_logistics=True,
+            approved_by_id=admin.id,
+            approved_at=datetime.utcnow(),
+            approval_note="초기 대표 군수담당 계정",
         )
+finally:
+    db.close()
 
-db.close()
 print("seed complete")

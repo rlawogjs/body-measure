@@ -1,4 +1,4 @@
-from sqlalchemy import Column, Integer, String, Float, DateTime, ForeignKey, Text
+from sqlalchemy import Boolean, Column, DateTime, Float, ForeignKey, Integer, String, Text
 from sqlalchemy.orm import relationship
 from datetime import datetime
 from database import Base
@@ -15,8 +15,21 @@ class User(Base):
     rank = Column(String(30), default="", nullable=False)
     unit = Column(String(100), default="", nullable=False)
 
+    approval_status = Column(String(20), default="pending", nullable=False)
+    approval_note = Column(Text, default="", nullable=False)
+    is_primary_logistics = Column(Boolean, default=False, nullable=False)
+
+    assigned_logistics_id = Column(Integer, ForeignKey("users.id"), nullable=True)
+    approved_by_id = Column(Integer, ForeignKey("users.id"), nullable=True)
+
+    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+    approved_at = Column(DateTime, nullable=True)
+
     measurements = relationship("MeasurementRecord", back_populates="user", cascade="all, delete-orphan")
     clothing_issues = relationship("ClothingIssue", back_populates="user", cascade="all, delete-orphan")
+
+    assigned_logistics = relationship("User", remote_side=[id], foreign_keys=[assigned_logistics_id], post_update=True)
+    approved_by = relationship("User", remote_side=[id], foreign_keys=[approved_by_id], post_update=True)
 
 
 class MeasurementRecord(Base):

@@ -1,12 +1,34 @@
-from pydantic import BaseModel, Field
-from typing import Optional, List
 from datetime import datetime
+from typing import Optional
+
+from pydantic import BaseModel, Field
+
+
+class UserOut(BaseModel):
+    id: int
+    username: str
+    name: str
+    role: str
+    rank: str
+    unit: str
+    approval_status: str
+    approval_note: str
+    is_primary_logistics: bool
+    assigned_logistics_id: Optional[int] = None
+    approved_by_id: Optional[int] = None
+    assigned_logistics_name: Optional[str] = None
+    approved_by_name: Optional[str] = None
+    approved_at: Optional[datetime] = None
+    created_at: datetime
+
+    class Config:
+        from_attributes = True
 
 
 class Token(BaseModel):
     access_token: str
     token_type: str
-    user: "UserOut"
+    user: UserOut
 
 
 class LoginRequest(BaseModel):
@@ -21,18 +43,16 @@ class UserCreate(BaseModel):
     role: str = "soldier"
     rank: str = ""
     unit: str = ""
+    assigned_logistics_id: Optional[int] = None
 
 
-class UserOut(BaseModel):
-    id: int
-    username: str
-    name: str
-    role: str
-    rank: str
-    unit: str
+class UserApprovalUpdate(BaseModel):
+    action: str
+    note: str = ""
 
-    class Config:
-        from_attributes = True
+
+class ProfileUpdate(BaseModel):
+    assigned_logistics_id: Optional[int] = None
 
 
 class MeasurementCreate(BaseModel):
