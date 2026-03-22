@@ -8,7 +8,6 @@ const Grid = styled.div`
   gap: 20px;
   @media (max-width: 900px) { grid-template-columns: 1fr; }
 `;
-
 const Card = styled.section`
   background: var(--paper);
   border: 1.5px solid var(--line);
@@ -16,7 +15,6 @@ const Card = styled.section`
   box-shadow: var(--shadow);
   padding: 28px;
 `;
-
 const Input = styled.input`
   width: 100%;
   padding: 16px 18px;
@@ -25,25 +23,22 @@ const Input = styled.input`
   background: #fcfaf6;
   color: var(--text);
 `;
-
 const ButtonRow = styled.div`
   margin-top: 20px;
   display: flex;
   gap: 10px;
   flex-wrap: wrap;
 `;
-
-const Button = styled.button`
-  border: 1.5px solid ${({ primary }) => (primary ? "var(--accent)" : "var(--line)")};
-  background: ${({ primary }) => (primary ? "var(--accent)" : "var(--paper-2)")};
-  color: ${({ primary }) => (primary ? "white" : "var(--text)")};
+const Button = styled.button.withConfig({ shouldForwardProp: (prop) => prop !== "$primary" })`
+  border: 1.5px solid ${({ $primary }) => ($primary ? "var(--accent)" : "var(--line)")};
+  background: ${({ $primary }) => ($primary ? "var(--accent)" : "var(--paper-2)")};
+  color: ${({ $primary }) => ($primary ? "white" : "var(--text)")};
   padding: 12px 18px;
   border-radius: 999px;
   font-weight: 800;
   cursor: pointer;
   opacity: ${({ disabled }) => (disabled ? 0.55 : 1)};
 `;
-
 const Preview = styled.img`
   width: 100%;
   border-radius: 18px;
@@ -56,13 +51,10 @@ export default function CalibratePage() {
   const nav = useNavigate();
   const previewUrl = sessionStorage.getItem("bm_previewUrl") || "";
   const [heightCm, setHeightCm] = useState("");
-
   const heightMm = useMemo(() => {
     const n = Number(heightCm);
-    if (!Number.isFinite(n)) return 0;
-    return Math.round(n * 10);
+    return Number.isFinite(n) ? Math.round(n * 10) : 0;
   }, [heightCm]);
-
   const canNext = useMemo(() => !!previewUrl && heightMm >= 1000 && heightMm <= 2500, [previewUrl, heightMm]);
 
   function goNext() {
@@ -85,7 +77,7 @@ export default function CalibratePage() {
       <Card>
         <div style={{ color: "var(--accent-2)", fontSize: 13, fontWeight: 800, letterSpacing: ".12em", textTransform: "uppercase" }}>Calibration</div>
         <h1 style={{ color: "var(--accent)", marginTop: 10 }}>기준 길이 입력</h1>
-        <p style={{ marginTop: 12 }}>실제 키를 입력해 측정 스케일을 보정합니다. 추후 군 피복 사이즈 추천의 기준값으로 사용됩니다.</p>
+        <p style={{ marginTop: 12 }}>실제 키를 입력해 측정 스케일을 보정합니다. 저장 시 서버 DB 기준 기록과 추천 사이즈가 함께 계산됩니다.</p>
         <div style={{ marginTop: 20, display: "grid", gap: 10 }}>
           <label style={{ fontWeight: 800 }}>키 (cm)</label>
           <Input inputMode="decimal" placeholder="예: 173" value={heightCm} onChange={(e) => setHeightCm(e.target.value)} />
@@ -93,7 +85,7 @@ export default function CalibratePage() {
         </div>
         <ButtonRow>
           <Button onClick={() => nav("/upload")}>이전</Button>
-          <Button primary disabled={!canNext} onClick={goNext}>결과 계산</Button>
+          <Button $primary disabled={!canNext} onClick={goNext}>결과 계산</Button>
         </ButtonRow>
       </Card>
       <Card>

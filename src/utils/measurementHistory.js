@@ -1,81 +1,58 @@
-const STORAGE_KEY = "bm_measure_history_v1";
-
-function safeParse(json, fallback) {
-  try {
-    const parsed = JSON.parse(json);
-    return parsed ?? fallback;
-  } catch {
-    return fallback;
-  }
+function asArray(value) {
+  return Array.isArray(value) ? value : [];
 }
 
-export function loadMeasurementHistory() {
-  const raw = localStorage.getItem(STORAGE_KEY);
-  const list = safeParse(raw, []);
-  return Array.isArray(list) ? list : [];
+export function formatDateTime(iso) {
+  if (!iso) return "-";
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return String(iso);
+  return d.toLocaleString("ko-KR", {
+    year: "2-digit",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+  });
 }
 
-export function getMeasurementHistory() {
-  return loadMeasurementHistory();
+export function measurementRecordToMeasures(record) {
+  if (!record) return [];
+
+  return [
+    { label: "키(추정)", mm: Number(record.height_mm) || 0, confidence: 1 },
+    { label: "어깨너비", mm: Number(record.shoulder_width_mm) || 0, confidence: 0.86 },
+    { label: "상체 길이", mm: Number(record.upper_body_length_mm) || 0, confidence: 0.82 },
+    { label: "하체 길이", mm: Number(record.lower_body_length_mm) || 0, confidence: 0.8 },
+    { label: "체중", mm: Number(record.weight_kg) || 0, confidence: 1, unit: "kg" },
+    { label: "BMI", mm: Number(record.bmi) || 0, confidence: 1, unit: "bmi" },
+    { label: "허리/키 비율", mm: Number(record.waist_height_ratio) || 0, confidence: 0.88, unit: "ratio" },
+    { label: "어깨/허리 비율", mm: Number(record.shoulder_waist_ratio) || 0, confidence: 0.85, unit: "ratio" },
+    { label: "상체/하체 비율", mm: Number(record.upper_lower_ratio) || 0, confidence: 0.84, unit: "ratio" },
+  ].filter((item) => item.mm || ["BMI", "체중", "키(추정)"].includes(item.label));
 }
 
-export function readMeasurementHistory() {
-  return loadMeasurementHistory();
-}
-
-export function saveMeasurementHistory(list) {
-  const safeList = Array.isArray(list) ? list : [];
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(safeList));
-}
-
-export function createHistorySnapshot({ imageId, calibrationMm, result }) {
-  const measuresMap = {};
-
-  const safeMeasures = Array.isArray(result?.measures) ? result.measures : [];
-  for (const item of safeMeasures) {
-    if (!item?.label) continue;
-    measuresMap[item.label] = {
-      mm: item.mm,
-      confidence: item.confidence,
-    };
-  }
-
+export function recordToHistorySnapshot(record) {
   return {
-    id: `${imageId || "img"}_${Date.now()}`,
-    imageId: imageId || null,
-    createdAt: new Date().toISOString(),
-    calibrationMm: Number(calibrationMm) || 0,
-    scaleMmPerPx: result?.scaleMmPerPx ?? null,
-    measures: measuresMap,
+    id: record.id,
+    imageId: record.image_id,
+    createdAt: record.created_at,
+    calibrationMm: Number(record.height_mm) || 0,
+    scaleMmPerPx: null,
+    measures: Object.fromEntries(
+      measurementRecordToMeasures(record).map((item) => [
+        item.label,
+        { mm: item.mm, confidence: item.confidence, unit: item.unit || "mm" },
+      ])
+    ),
   };
 }
 
-export function addMeasurementHistory(snapshot) {
-  const prev = loadMeasurementHistory();
-
-  const isDuplicate = prev.some(
-    (item) =>
-      item?.imageId &&
-      snapshot?.imageId &&
-      item.imageId === snapshot.imageId &&
-      item.calibrationMm === snapshot.calibrationMm
-  );
-
-  if (isDuplicate) return prev;
-
-  const next = [snapshot, ...prev].slice(0, 30);
-  saveMeasurementHistory(next);
-  return next;
-}
-
-export function clearMeasurementHistory() {
-  localStorage.removeItem(STORAGE_KEY);
+export function recordsToHistory(records) {
+  return asArray(records).map(recordToHistorySnapshot);
 }
 
 export function getMeasureSeries(history, label) {
-  const safeHistory = Array.isArray(history) ? history : [];
-
-  return safeHistory
+  return asArray(history)
     .slice()
     .reverse()
     .map((entry, index) => ({
@@ -86,19 +63,4 @@ export function getMeasureSeries(history, label) {
       confidence: entry?.measures?.[label]?.confidence ?? null,
     }))
     .filter((item) => typeof item.valueMm === "number");
-}
-
-export function formatDateTime(iso) {
-  if (!iso) return "-";
-
-  const d = new Date(iso);
-  if (Number.isNaN(d.getTime())) return String(iso);
-
-  return d.toLocaleString("ko-KR", {
-    year: "2-digit",
-    month: "2-digit",
-    day: "2-digit",
-    hour: "2-digit",
-    minute: "2-digit",
-  });
 }
