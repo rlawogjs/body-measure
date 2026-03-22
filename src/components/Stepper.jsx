@@ -3,8 +3,10 @@ import styled from "styled-components";
 
 const Bar = styled.div`
   display: flex;
-  gap: 10px;
+  gap: 8px;
   align-items: center;
+  flex-wrap: wrap;
+  justify-content: flex-end;
 `;
 
 const Dot = styled.div.withConfig({
@@ -13,15 +15,17 @@ const Dot = styled.div.withConfig({
   width: 10px;
   height: 10px;
   border-radius: 999px;
+  flex: 0 0 auto;
   background: ${({ $active }) =>
-    $active ? "var(--accent)" : "rgba(255,255,255,0.25)"};
+    $active ? "var(--accent)" : "rgba(103, 82, 66, 0.18)"};
   box-shadow: ${({ $active }) =>
-    $active ? "0 0 0 6px rgba(124,58,237,0.22)" : "none"};
+    $active ? "0 0 0 6px rgba(103,82,66,0.14)" : "none"};
 `;
 
 const Label = styled.div`
   font-size: 13px;
   color: var(--muted);
+  white-space: nowrap;
 `;
 
 export default function Stepper({ step }) {

@@ -12,15 +12,75 @@ import { getCurrentUser, isPrivileged } from "../utils/authStorage";
 import { formatDateTime } from "../utils/measurementHistory";
 
 const Grid = styled.div`display:grid; gap:18px;`;
-const Card = styled.section`background:var(--paper); border:1.5px solid var(--line); border-radius:28px; box-shadow:var(--shadow-soft); padding:24px;`;
-const Row = styled.div`display:grid; grid-template-columns:1.2fr .9fr .9fr .9fr auto; gap:10px; padding:14px 0; border-top:1px solid var(--line-soft); align-items:center; @media (max-width:900px){grid-template-columns:1fr;}`;
-const Select = styled.select`padding:12px 14px; border-radius:14px; border:1.5px solid var(--line); background:#fcfaf6; min-width:170px;`;
-const Input = styled.input`padding:12px 14px; border-radius:14px; border:1.5px solid var(--line); background:#fcfaf6; min-width:140px;`;
-const Button = styled.button`border:1.5px solid ${({$muted})=>$muted?"var(--line)":"var(--accent)"}; background:${({$muted})=>$muted?"var(--paper-2)":"var(--accent)"}; color:${({$muted})=>$muted?"var(--text)":"#fff"}; padding:10px 14px; border-radius:999px; font-weight:800; cursor:pointer;`;
-const Info = styled.div`border:1px solid var(--line-soft); background:var(--paper-2); border-radius:18px; padding:14px 16px;`;
+const Card = styled.section`
+  background:var(--paper);
+  border:1.5px solid var(--line);
+  border-radius:28px;
+  box-shadow:var(--shadow-soft);
+  padding:24px;
+`;
+const Row = styled.div`
+  display:grid;
+  grid-template-columns:minmax(0,1.4fr) minmax(140px,.8fr) minmax(0,1fr) auto;
+  gap:10px;
+  padding:14px 0;
+  border-top:1px solid var(--line-soft);
+  align-items:center;
+  @media (max-width:980px){grid-template-columns:1fr;}
+`;
+const Select = styled.select`
+  padding:12px 14px;
+  border-radius:14px;
+  border:1.5px solid var(--line);
+  background:#fcfaf6;
+  min-width:0;
+  width:100%;
+`;
+const Input = styled.input`
+  padding:12px 14px;
+  border-radius:14px;
+  border:1.5px solid var(--line);
+  background:#fcfaf6;
+  min-width:0;
+  width:100%;
+`;
+const Button = styled.button`
+  border:1.5px solid ${({$muted})=>$muted?"var(--line)":"var(--accent)"};
+  background:${({$muted})=>$muted?"var(--paper-2)":"var(--accent)"};
+  color:${({$muted})=>$muted?"var(--text)":"#fff"};
+  padding:10px 14px;
+  border-radius:999px;
+  font-weight:800;
+  cursor:pointer;
+  white-space:nowrap;
+`;
+const Info = styled.div`
+  border:1px solid var(--line-soft);
+  background:var(--paper-2);
+  border-radius:18px;
+  padding:14px 16px;
+  line-height:1.65;
+`;
+const FormGrid = styled.div`
+  display:grid;
+  grid-template-columns:repeat(5,minmax(0,1fr));
+  gap:12px;
+  margin-top:16px;
+  @media (max-width:980px){grid-template-columns:1fr 1fr;}
+  @media (max-width:640px){grid-template-columns:1fr;}
+`;
+const Message = styled.div`
+  margin-top:14px;
+  border:1px solid var(--line-soft);
+  background:var(--paper-2);
+  border-radius:18px;
+  padding:14px 16px;
+  color:var(--text);
+`;
 
 function roleLabel(role) {
   if (role === "admin") return "관리자";
+  if (role === "chief_logistics") return "대표 군수담당";
   if (role === "logistics") return "군수담당";
   if (role === "officer") return "간부";
   return "병사";
@@ -64,7 +124,7 @@ export default function AdminPage() {
     setMessage("");
     try {
       await updateUserApproval(userId, action, approvalNotes[userId] || "");
-      setMessage(action === "approve" ? "승인 처리했습니다." : "반려 처리했습니다.");
+      setMessage("승인 처리했습니다.");
       await loadAll();
     } catch (err) {
       setMessage(err.message || "승인 처리에 실패했습니다.");
@@ -103,7 +163,7 @@ export default function AdminPage() {
           현재 사용자: <strong>{currentUser?.name}</strong> · {roleLabel(currentUser?.role)}
           {currentUser?.is_primary_logistics ? " · 대표 군수담당" : ""}
         </p>
-        {message ? <Info style={{ marginTop: 14 }}>{message}</Info> : null}
+        {message ? <Message>{message}</Message> : null}
       </Card>
 
       <Card>
@@ -121,7 +181,6 @@ export default function AdminPage() {
                 <div>{statusLabel(user.approval_status)}</div>
                 <Input placeholder="승인 메모" value={approvalNotes[user.id] || ""} onChange={(e) => setApprovalNotes((prev) => ({ ...prev, [user.id]: e.target.value }))} />
                 <Button onClick={() => handleApproval(user.id, "approve")}>승인</Button>
-                <Button $muted onClick={() => handleApproval(user.id, "reject")}>반려</Button>
               </Row>
             ))}
           </div>
@@ -130,7 +189,7 @@ export default function AdminPage() {
 
       <Card as="form" onSubmit={handleCreateIssue}>
         <h2 style={{ color: "var(--accent)" }}>지급 이력 등록</h2>
-        <div style={{ display: "flex", gap: 12, flexWrap: "wrap", marginTop: 16 }}>
+        <FormGrid>
           <Select value={issueForm.user_id} onChange={(e) => setIssueForm((p) => ({ ...p, user_id: e.target.value }))}>
             {users.filter((u) => u.role === "soldier" || u.role === "officer").map((user) => (
               <option key={user.id} value={user.id}>{user.name} · {roleLabel(user.role)}</option>
@@ -144,8 +203,8 @@ export default function AdminPage() {
             <option value="recommended">추천</option>
             <option value="pending">대기</option>
           </Select>
-        </div>
-        <Input style={{ marginTop: 12, width: "100%" }} placeholder="비고" value={issueForm.note} onChange={(e) => setIssueForm((p) => ({ ...p, note: e.target.value }))} />
+        </FormGrid>
+        <Input style={{ marginTop: 12 }} placeholder="비고" value={issueForm.note} onChange={(e) => setIssueForm((p) => ({ ...p, note: e.target.value }))} />
         <Button type="submit" style={{ marginTop: 14 }}>지급 이력 저장</Button>
       </Card>
 

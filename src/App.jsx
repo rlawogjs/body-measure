@@ -7,6 +7,7 @@ import AdminPage from "./pages/AdminPage";
 import UploadPage from "./pages/UploadPage";
 import CalibratePage from "./pages/CalibratePage";
 import ResultPage from "./pages/ResultPage";
+import Layout from "./components/Layout";
 import { getCurrentUser, isPrivileged } from "./utils/authStorage";
 
 function PrivateRoute({ children }) {
@@ -55,50 +56,52 @@ function App() {
         <Route path="/login" element={<LoginPage />} />
         <Route path="/register" element={<RegisterPage />} />
 
-        <Route
-          path="/dashboard"
-          element={
-            <PrivateRoute>
-              <DashboardPage />
-            </PrivateRoute>
-          }
-        />
+        <Route element={<Layout />}>
+          <Route
+            path="/dashboard"
+            element={
+              <PrivateRoute>
+                <DashboardPage />
+              </PrivateRoute>
+            }
+          />
 
-        <Route
-          path="/upload"
-          element={
-            <PrivateRoute>
-              <UploadPage />
-            </PrivateRoute>
-          }
-        />
+          <Route
+            path="/upload"
+            element={
+              <PrivateRoute>
+                <UploadPage />
+              </PrivateRoute>
+            }
+          />
 
-        <Route
-          path="/calibrate"
-          element={
-            <PrivateRoute>
-              <CalibratePage />
-            </PrivateRoute>
-          }
-        />
+          <Route
+            path="/calibrate"
+            element={
+              <PrivateRoute>
+                <CalibratePage />
+              </PrivateRoute>
+            }
+          />
 
-        <Route
-          path="/result"
-          element={
-            <PrivateRoute>
-              <ResultPage />
-            </PrivateRoute>
-          }
-        />
+          <Route
+            path="/result"
+            element={
+              <PrivateRoute>
+                <ResultPage />
+              </PrivateRoute>
+            }
+          />
 
-        <Route
-          path="/admin"
-          element={
-            <AdminRoute>
-              <AdminPage />
-            </AdminRoute>
-          }
-        />
+          <Route
+            path="/admin"
+            element={
+              <AdminRoute>
+                <AdminPage />
+              </AdminRoute>
+            }
+          />
+        </Route>
 
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>

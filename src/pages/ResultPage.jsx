@@ -27,15 +27,22 @@ const Pill = styled.div`border:1px solid var(--line); background:var(--paper-2);
 const Card = styled.section`background:var(--paper); border:1.5px solid var(--line); border-radius:28px; box-shadow:var(--shadow-soft); padding:24px; animation:${rise} 1s ease both;`;
 const SectionTitle = styled.h2`color:var(--accent);`;
 const SectionDesc = styled.p`margin-top:10px;`;
-const Table = styled.div`margin-top:18px; border:1px solid var(--line); border-radius:20px; overflow:hidden;`;
+const Table = styled.div`margin-top:18px; border:1px solid var(--line); border-radius:20px; overflow:hidden; width:100%;`;
+const TableScroller = styled.div`overflow-x:auto;`; 
 const Row = styled.div.withConfig({ shouldForwardProp: (prop) => prop !== "$header" })`
-  display:grid; grid-template-columns:1.5fr 0.8fr 0.7fr; gap:10px; padding:14px 16px; align-items:center;
-  border-top:1px solid var(--line-soft); background:${({ $header }) => ($header ? "var(--paper-2)" : "transparent")}; font-weight:${({ $header }) => ($header ? 800 : 500)};
+  display:grid;
+  grid-template-columns:minmax(120px,1.5fr) minmax(90px,0.8fr) minmax(90px,0.7fr);
+  gap:10px;
+  padding:14px 16px;
+  align-items:center;
+  border-top:1px solid var(--line-soft);
+  background:${({ $header }) => ($header ? "var(--paper-2)" : "transparent")};
+  font-weight:${({ $header }) => ($header ? 800 : 500)};
   &:first-child { border-top:0; }
   @media (max-width:900px) { grid-template-columns:1fr; }
 `;
 const ControlRow = styled.div`margin-top:16px; display:flex; gap:12px; flex-wrap:wrap; align-items:center;`;
-const Input = styled.input`padding:11px 14px; border-radius:14px; border:1.5px solid var(--line); background:#fcfaf6; color:var(--text); width:130px;`;
+const Input = styled.input`padding:11px 14px; border-radius:14px; border:1.5px solid var(--line); background:#fcfaf6; color:var(--text); width:min(180px, 100%);`; 
 const Select = styled.select`padding:11px 14px; border-radius:14px; border:1.5px solid var(--line); background:#fcfaf6; color:var(--text);`;
 const ButtonRow = styled.div`margin-top:18px; display:flex; gap:10px; flex-wrap:wrap;`;
 const Button = styled.button.withConfig({ shouldForwardProp: (prop) => prop !== "$primary" })`
@@ -49,7 +56,8 @@ const HistoryItem = styled.div`border:1px solid var(--line-soft); background:var
 const HistoryMeta = styled.div`margin-top:6px; display:flex; gap:10px; flex-wrap:wrap; color:var(--muted); font-size:13px;`;
 const EmptyState = styled.div`margin-top:18px; border:1.5px dashed var(--line); background:var(--paper-2); border-radius:20px; padding:22px; color:var(--muted);`;
 const RecommendGrid = styled.div`margin-top:18px; display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:12px; @media (max-width:900px){grid-template-columns:1fr;}`;
-const RecommendCard = styled.div`border:1px solid var(--line-soft); background:var(--paper-2); border-radius:18px; padding:16px;`;
+const RecommendCard = styled.div`border:1px solid var(--line-soft); background:var(--paper-2); border-radius:18px; padding:16px; min-width:0;`;
+const ValueCell = styled.div`font-variant-numeric: tabular-nums; word-break: break-word;`; 
 
 function asArray(value) { return Array.isArray(value) ? value : []; }
 function mmToCm(mm) { const n = Number(mm); return Number.isFinite(n) ? (n / 10).toFixed(1) : "-"; }
@@ -147,17 +155,11 @@ export default function ResultPage() {
       const getValue = (label) => Number(asArray(result?.measures).find((m) => m?.label === label)?.mm) || 0;
       try {
         const saved = await saveMeasurement({
-          image_id: imageId || "",
           height_mm: calibrationMm,
           weight_kg: weightKg,
+          chest_cm: Number((getValue("어깨너비") / 10 / 0.42).toFixed(1)) || null,
+          waist_cm: Number((calibrationMm * getValue("허리/키 비율") / 10).toFixed(1)) || null,
           bmi: getValue("BMI"),
-          shoulder_width_mm: getValue("어깨너비"),
-          upper_body_length_mm: getValue("상체 길이"),
-          lower_body_length_mm: getValue("하체 길이"),
-          waist_height_ratio: getValue("허리/키 비율"),
-          shoulder_waist_ratio: getValue("어깨/허리 비율"),
-          upper_lower_ratio: getValue("상체/하체 비율"),
-          note: "이미지 기반 치수 분석 결과",
         });
 
         const recommendations = recommendUniformSizes({ heightMm: calibrationMm, weightKg });
@@ -171,15 +173,19 @@ export default function ResultPage() {
         for (const item of recommendations) {
           const key = `${item.itemName}:${item.size}`;
           if (existingRecommendedKeys.has(key)) continue;
-          const created = await createIssue({
-            user_id: saved.user_id,
-            item_name: item.itemName,
-            size: item.size,
-            quantity: item.quantity || 1,
-            status: "recommended",
-            note: "측정 결과 기반 자동 추천",
-          });
-          createdIssues.push(created);
+          try {
+            const created = await createIssue({
+              user_id: saved.user_id,
+              item_name: item.itemName,
+              size: item.size,
+              quantity: item.quantity || 1,
+              status: "recommended",
+              note: "측정 결과 기반 자동 추천",
+            });
+            createdIssues.push(created);
+          } catch (issueErr) {
+            console.error(issueErr);
+          }
         }
 
         setRecords((prev) => [saved, ...prev]);
@@ -253,12 +259,14 @@ export default function ResultPage() {
             <Input type="number" min="1" step="0.1" value={weightKg} onChange={(e) => setWeightKg(Math.max(Number(e.target.value) || 0, 0))} />
           </ControlRow>
         ) : null}
-        <Table>
-          <Row $header><div>항목</div><div>값</div><div>신뢰도</div></Row>
-          {loading ? <Row><div>측정 중...</div><div>-</div><div>-</div></Row> : asArray(result?.measures).map((m) => (
-            <Row key={m.label}><div style={{ fontWeight: 800 }}>{m.label}</div><div>{formatMeasureValue(m)}</div><div>{Math.round((m.confidence ?? 0) * 100)}%</div></Row>
-          ))}
-        </Table>
+        <TableScroller>
+          <Table>
+            <Row $header><div>항목</div><ValueCell>값</ValueCell><ValueCell>신뢰도</ValueCell></Row>
+            {loading ? <Row><div>측정 중...</div><ValueCell>-</ValueCell><ValueCell>-</ValueCell></Row> : asArray(result?.measures).map((m) => (
+              <Row key={m.label}><div style={{ fontWeight: 800 }}>{m.label}</div><ValueCell>{formatMeasureValue(m)}</ValueCell><ValueCell>{Math.round((m.confidence ?? 0) * 100)}%</ValueCell></Row>
+            ))}
+          </Table>
+        </TableScroller>
         <ButtonRow>
           <Button onClick={() => nav("/calibrate")}>이전</Button>
           <Button onClick={() => { sessionStorage.clear(); nav("/upload"); }}>새로 측정</Button>

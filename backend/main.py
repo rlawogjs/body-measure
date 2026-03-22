@@ -1,6 +1,8 @@
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi import FastAPI, Depends, HTTPException, Form
 from sqlalchemy.orm import Session
+import logging
+import os
 
 from database import Base, engine, get_db, SessionLocal
 from models import User
@@ -38,13 +40,24 @@ from crud import (
 )
 from auth import verify_password, create_access_token, get_current_user
 
+app = FastAPI(title="Findfit API")
+logger = logging.getLogger(__name__)
+
 Base.metadata.create_all(bind=engine)
 
-app = FastAPI(title="Findfit API")
+# Render/Vercel 배포용 CORS 설정
+frontend_origins = [
+    origin.strip()
+    for origin in os.getenv(
+        "FRONTEND_ORIGINS",
+        "http://localhost:3000,http://127.0.0.1:3000,https://body-measure2.vercel.app"
+    ).split(",")
+    if origin.strip()
+]
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=frontend_origins,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -93,7 +106,10 @@ def seed_default_users() -> None:
         db.close()
 
 
-seed_default_users()
+try:
+    seed_default_users()
+except Exception as exc:
+    logger.exception("Default user seeding failed: %s", exc)
 
 
 @app.get("/")
@@ -126,7 +142,6 @@ def register(payload: UserCreate, db: Session = Depends(get_db)):
             raise HTTPException(status_code=400, detail="유효한 군수담당을 선택해주세요.")
 
     if payload.role == "logistics":
-        # 일반 군수담당은 대표 군수담당/관리자 승인 필요
         payload.manager_user_id = None
 
     return create_user(
@@ -295,8 +310,14 @@ def remove_measurement(
 def save_issue(
     payload: ClothingIssueCreate,
     db: Session = Depends(get_db),
-    _: User = Depends(require_privileged),
+    user: User = Depends(get_current_user),
 ):
+    is_privileged = user.role in ["admin", "chief_logistics", "logistics"]
+    is_own_recommendation = payload.user_id == user.id and payload.status in ["recommended", "pending"]
+
+    if not is_privileged and not is_own_recommendation:
+        raise HTTPException(status_code=403, detail="지급 이력을 저장할 권한이 없습니다.")
+
     return create_issue(db, payload)
 
 

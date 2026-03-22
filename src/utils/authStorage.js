@@ -35,5 +35,5 @@ export async function hydrateCurrentUser() {
 
 export function isPrivileged(user = getCurrentUser()) {
   const role = user?.role;
-  return (role === "admin" || role === "logistics") && user?.approval_status === "approved";
+  return ["admin", "chief_logistics", "logistics"].includes(role) && user?.approval_status === "approved";
 }

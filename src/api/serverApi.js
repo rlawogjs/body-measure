@@ -8,6 +8,30 @@ export const API_BASE = (
 const TOKEN_KEY = "bm_token";
 const USER_KEY = "bm_user";
 
+function normalizeUser(user) {
+  if (!user) return null;
+  return {
+    ...user,
+    approval_status: user.approved ? "approved" : "pending",
+    assigned_logistics_id: user.manager_user_id ?? null,
+    assigned_logistics_name: user.manager?.name || user.manager_name || null,
+    is_primary_logistics: user.role === "chief_logistics",
+  };
+}
+
+function normalizeMeasurement(record) {
+  if (!record) return record;
+  return {
+    ...record,
+    shoulder_width_mm: record.shoulder_width_mm ?? null,
+    upper_body_length_mm: record.upper_body_length_mm ?? null,
+    lower_body_length_mm: record.lower_body_length_mm ?? null,
+    waist_height_ratio: record.waist_height_ratio ?? null,
+    shoulder_waist_ratio: record.shoulder_waist_ratio ?? null,
+    upper_lower_ratio: record.upper_lower_ratio ?? null,
+  };
+}
+
 export function getToken() {
   return localStorage.getItem(TOKEN_KEY) || "";
 }
@@ -25,7 +49,7 @@ export function setAuth(data) {
     localStorage.setItem(TOKEN_KEY, data.access_token);
   }
   if (data?.user) {
-    localStorage.setItem(USER_KEY, JSON.stringify(data.user));
+    localStorage.setItem(USER_KEY, JSON.stringify(normalizeUser(data.user)));
   }
 }
 
@@ -71,7 +95,7 @@ export function login(username, password) {
     body: JSON.stringify({ username, password }),
   }).then((data) => {
     setAuth(data);
-    return data.user;
+    return normalizeUser(data.user);
   });
 }
 
@@ -79,11 +103,11 @@ export function register(payload) {
   return request("/auth/register", {
     method: "POST",
     body: JSON.stringify(payload),
-  });
+  }).then(normalizeUser);
 }
 
 export async function fetchMe() {
-  const user = await request("/auth/me");
+  const user = normalizeUser(await request("/auth/me"));
   localStorage.setItem(USER_KEY, JSON.stringify(user));
   return user;
 }
@@ -98,7 +122,7 @@ export async function updateProfile(payload) {
     body: JSON.stringify({
       manager_user_id: payload.manager_user_id,
     }),
-  });
+  }).then(normalizeUser);
   localStorage.setItem(USER_KEY, JSON.stringify(user));
   return user;
 }
@@ -108,7 +132,7 @@ export async function updateProfile(payload) {
  * backend: GET /public/managers
  */
 export function getLogisticsOptions() {
-  return request("/public/managers");
+  return request("/public/managers").then((rows) => Array.isArray(rows) ? rows.map(normalizeUser) : []);
 }
 
 /**
@@ -116,7 +140,7 @@ export function getLogisticsOptions() {
  * backend: GET /users/pending
  */
 export function getApprovalQueue() {
-  return request("/users/pending");
+  return request("/users/pending").then((rows) => Array.isArray(rows) ? rows.map(normalizeUser) : []);
 }
 
 /**
@@ -136,29 +160,29 @@ export function updateUserApproval(userId, action, note = "") {
       approved: true,
       note,
     }),
-  });
+  }).then(normalizeUser);
 }
 
 export function saveMeasurement(payload) {
   return request("/measurements", {
     method: "POST",
     body: JSON.stringify(payload),
-  });
+  }).then(normalizeMeasurement);
 }
 
 export function getMyMeasurements() {
-  return request("/measurements/me");
+  return request("/measurements/me").then((rows) => Array.isArray(rows) ? rows.map(normalizeMeasurement) : []);
 }
 
 export function getAllMeasurements() {
-  return request("/measurements");
+  return request("/measurements").then((rows) => Array.isArray(rows) ? rows.map(normalizeMeasurement) : []);
 }
 
 export function updateMeasurement(id, payload) {
   return request(`/measurements/${id}`, {
     method: "PUT",
     body: JSON.stringify(payload),
-  });
+  }).then(normalizeMeasurement);
 }
 
 export function deleteMeasurement(id) {
@@ -168,7 +192,7 @@ export function deleteMeasurement(id) {
 }
 
 export function getUsers() {
-  return request("/users");
+  return request("/users").then((rows) => Array.isArray(rows) ? rows.map(normalizeUser) : []);
 }
 
 export function createIssue(payload) {

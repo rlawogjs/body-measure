@@ -18,16 +18,27 @@ export function formatDateTime(iso) {
 export function measurementRecordToMeasures(record) {
   if (!record) return [];
 
+  const heightMm = Number(record.height_mm) || 0;
+  const weightKg = Number(record.weight_kg) || 0;
+  const chestCm = Number(record.chest_cm) || 0;
+  const waistCm = Number(record.waist_cm) || 0;
+  const shoulderWidthMm = Number(record.shoulder_width_mm) || (chestCm ? chestCm * 10 * 0.42 : 0);
+  const upperBodyLengthMm = Number(record.upper_body_length_mm) || (heightMm ? heightMm * 0.3 : 0);
+  const lowerBodyLengthMm = Number(record.lower_body_length_mm) || (heightMm ? heightMm * 0.52 : 0);
+  const waistHeightRatio = Number(record.waist_height_ratio) || (heightMm && waistCm ? (waistCm * 10) / heightMm : 0);
+  const shoulderWaistRatio = Number(record.shoulder_waist_ratio) || (waistCm ? shoulderWidthMm / (waistCm * 10) : 0);
+  const upperLowerRatio = Number(record.upper_lower_ratio) || (lowerBodyLengthMm ? upperBodyLengthMm / lowerBodyLengthMm : 0);
+
   return [
-    { label: "키(추정)", mm: Number(record.height_mm) || 0, confidence: 1 },
-    { label: "어깨너비", mm: Number(record.shoulder_width_mm) || 0, confidence: 0.86 },
-    { label: "상체 길이", mm: Number(record.upper_body_length_mm) || 0, confidence: 0.82 },
-    { label: "하체 길이", mm: Number(record.lower_body_length_mm) || 0, confidence: 0.8 },
-    { label: "체중", mm: Number(record.weight_kg) || 0, confidence: 1, unit: "kg" },
+    { label: "키(추정)", mm: heightMm, confidence: 1 },
+    { label: "어깨너비", mm: shoulderWidthMm, confidence: 0.86 },
+    { label: "상체 길이", mm: upperBodyLengthMm, confidence: 0.82 },
+    { label: "하체 길이", mm: lowerBodyLengthMm, confidence: 0.8 },
+    { label: "체중", mm: weightKg, confidence: 1, unit: "kg" },
     { label: "BMI", mm: Number(record.bmi) || 0, confidence: 1, unit: "bmi" },
-    { label: "허리/키 비율", mm: Number(record.waist_height_ratio) || 0, confidence: 0.88, unit: "ratio" },
-    { label: "어깨/허리 비율", mm: Number(record.shoulder_waist_ratio) || 0, confidence: 0.85, unit: "ratio" },
-    { label: "상체/하체 비율", mm: Number(record.upper_lower_ratio) || 0, confidence: 0.84, unit: "ratio" },
+    { label: "허리/키 비율", mm: waistHeightRatio, confidence: 0.88, unit: "ratio" },
+    { label: "어깨/허리 비율", mm: shoulderWaistRatio, confidence: 0.85, unit: "ratio" },
+    { label: "상체/하체 비율", mm: upperLowerRatio, confidence: 0.84, unit: "ratio" },
   ].filter((item) => item.mm || ["BMI", "체중", "키(추정)"].includes(item.label));
 }
 
